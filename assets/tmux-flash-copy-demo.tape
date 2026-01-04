@@ -30,24 +30,23 @@ Show
 # cat tmux-flash-copy.tmux file
 Sleep 2s
 Type "bat -pp tmux-flash-copy.tmux" Enter
-Sleep 2s
+Sleep 500ms
 
 # Commentary
 Type `"I'll now search for the word 'option_override' in this file using tmux-flash-copy"`
 Sleep 2s
 Ctrl+u
-Sleep 3s
 
 # Start tmux-flash-copy
 Ctrl+p
 Sleep 500ms
-Type "F" Enter
+Type "F"
 Sleep 500ms
 
 # Type search query
 Type@500ms "option"
 Sleep 2s
-Type "j" Enter
+Type "j"
 
 # Paste copied text
 Type `"I selected label 'j', and the text is now in my clipboard!"`
@@ -63,4 +62,4 @@ Sleep 5s
 
 # Kill the tmux server (hidden in GIF)
 Hide
-Type "tmux kill-server" Enter
+Type "tmux kill-session -t tmux-flash-copy" Enter
