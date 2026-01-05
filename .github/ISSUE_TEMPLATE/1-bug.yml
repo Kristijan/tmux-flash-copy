@@ -22,7 +22,7 @@ body:
     attributes:
       label: Debug log output
       description: Please copy and paste the log output from `~/.tmux-flash-copy-debug.log`. This will be automatically formatted into code, so no need for backticks.
-      render: shell
+      render: text
     validations:
       required: true
   - type: dropdown

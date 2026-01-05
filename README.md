@@ -286,107 +286,15 @@ The above order are the defaults from [flash.nvim](https://github.com/folke/flas
 
 ## Clipboard Implementation
 
-This plugin uses a tiered approach to copy selected text to the clipboard, ensuring compatibility across different terminal and platform configurations.
-
-The clipboard module attempts to copy text using these methods in order, stopping at the first successful one.
-
-1. **OSC52 via tmux (Primary)**
-    - Uses: `tmux set-buffer -w` to leverage tmux's built-in OSC52 support
-    - Requires: tmux 3.2+ and a terminal with OSC52 support (Ghostty, iTerm2, Kitty, Alacritty, etc...)
-    - Benefit: works without external tools, copies to system clipboard via terminal's OSC52 handling
-
-2. **Native System Clipboard Tools (Fallback)**
-    - Uses:
-        - **macOS**: `pbcopy` (built-in)
-        - **Linux**: `xclip` (primary) or `xsel` (fallback)
-    - Requires: the above utility being installed
-
-3. **tmux Buffer (Last Resort)**
-    - Uses: `tmux set-buffer` to store text in tmux's buffer
-    - Benefit: allows pasting within tmux even if OSC52 and system tools aren't available
-    - Limitation: text only available for pasting within tmux, not to system clipboard
+For information on clipboard methods, troubleshooting, and platform-specific recommendations, see [CLIPBOARD.md](CLIPBOARD.md).
 
 ## Debugging
 
-Debug logging can be enabled to help troubleshoot issues with popup positioning, search functionality, clipboard operations, and more.
+For information on debugging information, including log format, troubleshooting specific issues, and example debug sessions, see [DEBUGGING.md](DEBUGGING.md).
 
-### Enabling/Disabling Debug Mode
+## Development & Testing
 
-Add the following to your `~/.tmux.conf`, and either restart tmux, or reload your configuration with `tmux source ~/.tmux.conf`
-
-#### Enable
-
-```bash
-# Enable debug logging
-set -g @flash-copy-debug "on"
-```
-
-#### Disable
-
-```bash
-# Disable debug logging
-set -g @flash-copy-debug "off"
-```
-
-### Debug Log Location
-
-Debug logs are written to `~/.tmux-flash-copy-debug.log`
-
-There is some rudimentary housekeeping enabled:
-
-- Maximum size: 5MB per file
-- Keeps 2 backup files (`.log`, `.log.1`, `.log.2`)
-- Total maximum storage: ~15MB
-
-### Visual Debug Indicator
-
-When debug mode is active, you'll see a persistent indicator on the right side of the search prompt:
-
-```text
-─────────────────────────────────────────────────────────────────────────────────
-> search...                                                        !! DEBUG ON !!
-```
-
-### Example Debug Log Output
-
-```text
-[2026-01-04T15:30:45.123] ================================================================================
-[2026-01-04T15:30:45.123]   TMUX-FLASH-COPY DEBUG SESSION STARTED
-[2026-01-04T15:30:45.123] ================================================================================
-[2026-01-04T15:30:45.124] Python: 3.14.2 (final) (/usr/local/bin/python3)
-[2026-01-04T15:30:45.125] Tmux: tmux 3.6a
-[2026-01-04T15:30:45.125] Pane ID: %0
-[2026-01-04T15:30:45.125] Log file: /Users/username/.tmux-flash-copy-debug.log
-[2026-01-04T15:30:45.126] ================================================================================
-[2026-01-04T15:30:45.126]   Configuration Settings
-[2026-01-04T15:30:45.126] ================================================================================
-[2026-01-04T15:30:45.126] ui_mode: popup
-[2026-01-04T15:30:45.126] word_separators: ' -_.,;:!?/\\()[]{}<>~!@#$%^&*|+=[]{}?\'"'
-[2026-01-04T15:30:45.130] ================================================================================
-[2026-01-04T15:30:45.130]   Tmux Environment
-[2026-01-04T15:30:45.130] ================================================================================
-[2026-01-04T15:30:45.131] Sessions (1):
-[2026-01-04T15:30:45.131]   - main (5 windows) ← ACTIVE
-[2026-01-04T15:30:45.132] Windows (3):
-[2026-01-04T15:30:45.132]   - [0] zsh (1 panes)
-[2026-01-04T15:30:45.133]   - [1] vim (2 panes) ← ACTIVE
-[2026-01-04T15:30:45.134] Panes (2):
-[2026-01-04T15:30:45.134]   - %0: 80x24 (vim) ← ACTIVE
-[2026-01-04T15:30:45.135]   - %1: 80x24 (zsh)
-[2026-01-04T15:30:45.136] ================================================================================
-[2026-01-04T15:30:45.136]   Pane Layout (ASCII)
-[2026-01-04T15:30:45.136] ================================================================================
-[2026-01-04T15:30:45.137] ┌────────────────────────────────┬───────────────────────────────┐
-[2026-01-04T15:30:45.137] │                                │                               │
-[2026-01-04T15:30:45.137] │        %0 80x24                │        %1 80x24               │
-[2026-01-04T15:30:45.137] │                                │                               │
-[2026-01-04T15:30:45.137] └────────────────────────────────┴───────────────────────────────┘
-[2026-01-04T15:30:47.456] Search query: 'test' -> 12 matches
-[2026-01-04T15:30:47.457]   [a] line 5, col 10: 'testing'
-[2026-01-04T15:30:47.457]   [s] line 8, col 23: 'test'
-[2026-01-04T15:30:49.123] User selected label 'a': 'testing'
-[2026-01-04T15:30:49.125] Clipboard: Success via tmux OSC52
-```
+For information on setting up a development environment, running tests, and code quality checks, see [TESTING.md](TESTING.md).
 
 ## ANSI colour codes
 
@@ -402,14 +310,6 @@ Common ANSI colour codes.
 - `\033[0;31m` - Red (non-bold)
 - `\033[0;32m` - Green (non-bold)
 
-## Tools used in image
-
-- Terminal is [Ghostty](https://ghostty.org) with catppuccin mocha theme.
-- TMUX theme is [catppuccin](https://github.com/catppuccin/tmux) mocha.
-- ZSH shell prompt is [starship](https://starship.rs)
-- `l` is aliased to [eza](https://github.com/eza-community/eza)
-- `cat` is aliased to [bat](https://github.com/sharkdp/bat)
-
 ## Future enhancements
 
 - [ ] I'm manually parsing the output of `tmux` commands using a subprocess. This should ideally be using something like [libtmux](https://github.com/tmux-python/libtmux). I might consider switching to this in a major revision update, as I'm likely leaving increased performance on the table.
@@ -418,6 +318,13 @@ Common ANSI colour codes.
 ## Contributing
 
 Contributions are welcome! Please feel free to submit issues or pull requests.
+
+Before submitting a PR:
+
+1. Run tests and code quality checks (see [TESTING.md](TESTING.md)).
+2. Ensure all tests pass.
+3. Add tests for new functionality.
+4. Update documentation as needed.
 
 ## License
 
