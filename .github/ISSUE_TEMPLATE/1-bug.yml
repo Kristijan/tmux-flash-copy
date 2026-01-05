@@ -1,0 +1,49 @@
+name: Bug Report
+description: I've found a bug with tmux-flash-copy.
+title: "[BUG]: "
+labels: ["bug", "triage"]
+assignees:
+  - kristijan
+type: bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report. Before you submit, please make sure to read the [DEBUGGING](https://github.com/Kristijan/tmux-flash-copy/blob/main/DEBUGGING.md) guide to see if it can help you solve your issue.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Also tell us, what did you expect to happen?
+      placeholder: Tell us what you see!
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Debug log output
+      description: Please copy and paste the log output from `~/.tmux-flash-copy-debug.log`. This will be automatically formatted into code, so no need for backticks.
+      render: shell
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System?
+      description: What operating system are you running?
+      multiple: true
+      options:
+        - macOS
+        - Linux
+        - Windows
+        - Other
+    validations:
+      required: true
+  - type: checkboxes
+    id: doco_check
+    attributes:
+      label: Have you read the debugging documentation?
+      description: See if [DEBUGGING](https://github.com/Kristijan/tmux-flash-copy/blob/main/DEBUGGING.md) can help solve your bug.
+      options:
+        - label: I've read the documentation and still need to report this bug.
+          required: true
