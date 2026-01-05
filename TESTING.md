@@ -208,7 +208,18 @@ tests/
 
 ### GitHub Actions Workflow
 
-Tests run automatically on every pull request to `main`
+Tests run automatically on every pull request to `main`.
+
+**Workflow**: `.github/workflows/plugin-testing.yml`
+
+**What it runs**:
+
+1. Tests against Python 3.9, 3.10, 3.11, and 3.12
+2. Type checking: `uv run ty check --output-format=github`
+3. Linting: `uv run ruff check --output-format=github`
+4. Formatting: `uv run ruff format --check`
+5. Tests with coverage: `uv run pytest --cov=src --cov-report=term-missing --cov-report=xml`
+6. Uploads coverage to Codecov (Python 3.12 only)
 
 ### Running CI Checks Locally
 
@@ -220,14 +231,14 @@ rm -rf .venv
 uv venv
 source .venv/bin/activate
 
-# Install dependencies
-uv pip install -e ".[dev]"
+# Install the project
+uv sync --locked --all-extras --dev
 
 # Run all CI checks
-uvx ty check
-uvx ruff check --output-format=github
-uvx ruff format --check
-pytest --cov=src --cov-report=term-missing --cov-report=xml
+uv run ty check
+uv run ruff check
+uv run ruff format
+uv run pytest
 
 # If all pass, your PR is ready!
 ```
