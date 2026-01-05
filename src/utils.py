@@ -8,23 +8,23 @@ timeouts, and logging.
 import os
 import shutil
 import subprocess
-from typing import List, Optional
 from dataclasses import dataclass
+from typing import Optional
 
 
 class FileUtils:
     """Utilities for file and directory operations."""
-    
+
     @staticmethod
     def cleanup_dir(dir_path: str) -> bool:
         """
         Remove a directory and all its contents.
-        
+
         Safely removes a directory tree with error handling.
-        
+
         Args:
             dir_path: Path to the directory to remove
-            
+
         Returns:
             True if cleanup succeeded, False otherwise
         """
@@ -38,67 +38,63 @@ class FileUtils:
 
 class SubprocessUtils:
     """Utilities for running subprocess commands with consistent error handling."""
-    
+
     DEFAULT_TIMEOUT = 5  # seconds
-    
+
     @staticmethod
-    def run_command(cmd: List[str], default: str = "", capture_output: bool = True,
-                    timeout: int = DEFAULT_TIMEOUT) -> str:
+    def run_command(
+        cmd: list[str],
+        default: str = "",
+        capture_output: bool = True,
+        timeout: int = DEFAULT_TIMEOUT,
+    ) -> str:
         """
         Run a command and return its output.
-        
+
         Provides consistent error handling with sensible defaults. Errors and
         timeouts return the default value instead of raising exceptions.
-        
+
         Args:
             cmd: Command and arguments as a list
             default: Default value to return on error or if command fails
             capture_output: If True, capture stdout; if False, run silently
             timeout: Timeout in seconds (default 5)
-            
+
         Returns:
             The stdout output if successful, otherwise the default value
         """
         try:
             result = subprocess.run(
-                cmd,
-                capture_output=capture_output,
-                text=True,
-                check=False,
-                timeout=timeout
+                cmd, capture_output=capture_output, text=True, check=False, timeout=timeout
             )
             if result.returncode == 0:
                 return result.stdout.strip() if capture_output else ""
             return default
         except (subprocess.SubprocessError, OSError, TimeoutError):
             return default
-    
+
     @staticmethod
-    def run_command_quiet(cmd: List[str], timeout: int = DEFAULT_TIMEOUT) -> bool:
+    def run_command_quiet(cmd: list[str], timeout: int = DEFAULT_TIMEOUT) -> bool:
         """
         Run a command silently and return success/failure status.
-        
+
         Args:
             cmd: Command and arguments as a list
             timeout: Timeout in seconds (default 5)
-            
+
         Returns:
             True if command succeeded (returncode 0), False otherwise
         """
         try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                check=False,
-                timeout=timeout
-            )
+            result = subprocess.run(cmd, capture_output=True, check=False, timeout=timeout)
             return result.returncode == 0
         except (subprocess.SubprocessError, OSError, TimeoutError):
             return False
-    
+
     @staticmethod
-    def run_command_with_input(cmd: List[str], input_text: str,
-                               timeout: int = DEFAULT_TIMEOUT) -> bool:
+    def run_command_with_input(
+        cmd: list[str], input_text: str, timeout: int = DEFAULT_TIMEOUT
+    ) -> bool:
         """
         Run a command with text input and return success status.
 
@@ -118,7 +114,7 @@ class SubprocessUtils:
                 input=input_text.encode("utf-8"),
                 capture_output=True,
                 check=False,
-                timeout=timeout
+                timeout=timeout,
             )
             return result.returncode == 0
         except (subprocess.SubprocessError, OSError, TimeoutError):
@@ -128,6 +124,7 @@ class SubprocessUtils:
 @dataclass
 class PaneDimensions:
     """Represents the dimensions and position of a tmux pane."""
+
     pane_id: str
     left: int
     top: int
@@ -155,14 +152,17 @@ class TmuxPaneUtils:
             # Use display-message to get info for the specific pane
             result = subprocess.run(
                 [
-                    "tmux", "display-message",
-                    "-t", pane_id,
-                    "-p", "#{pane_id} #{pane_left} #{pane_top} #{pane_right} #{pane_bottom} #{pane_width} #{pane_height}"
+                    "tmux",
+                    "display-message",
+                    "-t",
+                    pane_id,
+                    "-p",
+                    "#{pane_id} #{pane_left} #{pane_top} #{pane_right} #{pane_bottom} #{pane_width} #{pane_height}",
                 ],
                 capture_output=True,
                 text=True,
                 check=True,
-                timeout=2
+                timeout=2,
             )
 
             # Parse the output
@@ -177,7 +177,7 @@ class TmuxPaneUtils:
                 right=int(parts[3]),
                 bottom=int(parts[4]),
                 width=int(parts[5]),
-                height=int(parts[6])
+                height=int(parts[6]),
             )
         except (subprocess.SubprocessError, ValueError, IndexError, OSError):
             return None
@@ -201,14 +201,11 @@ class TmuxPaneUtils:
         """
         # Determine y position based on whether pane is at the top
         # For non-top panes, add 1 to account for the border above the pane
-        if dimensions.top == 0:
-            y_position = dimensions.top
-        else:
-            y_position = dimensions.bottom + 1
+        y_position = dimensions.top if dimensions.top == 0 else dimensions.bottom + 1
 
         return {
-            'x': dimensions.left,
-            'y': y_position,
-            'width': dimensions.width,
-            'height': dimensions.height
+            "x": dimensions.left,
+            "y": y_position,
+            "width": dimensions.width,
+            "height": dimensions.height,
         }

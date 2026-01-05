@@ -13,7 +13,7 @@ import re
 
 class AnsiStyles:
     """ANSI style and structural codes (not colour-specific)."""
-    
+
     # Structural styles
     BOLD = "\033[1m"
     DIM = "\033[2m"
@@ -41,23 +41,23 @@ class ControlChars:
 
 class AnsiUtils:
     """Utilities for working with ANSI-coloured and escape-sequenced text."""
-    
+
     # Pattern to match ANSI escape sequences
-    ANSI_ESCAPE_PATTERN = re.compile(r'\x1b\[[0-9;]*m')
-    
+    ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-9;]*m")
+
     @staticmethod
     def strip_ansi_codes(text: str) -> str:
         """
         Remove ANSI escape codes from text.
-        
+
         Args:
             text: Text potentially containing ANSI codes
-            
+
         Returns:
             Text with all ANSI codes removed
         """
-        return AnsiUtils.ANSI_ESCAPE_PATTERN.sub('', text)
-    
+        return AnsiUtils.ANSI_ESCAPE_PATTERN.sub("", text)
+
     @staticmethod
     def map_position_to_coloured(coloured_text: str, plain_pos: int) -> int:
         """
@@ -80,9 +80,9 @@ class AnsiUtils:
 
         while plain_idx < plain_pos and coloured_idx < len(coloured_text):
             # Check if we're at the start of an ANSI escape sequence
-            if coloured_text[coloured_idx:coloured_idx+1] == '\x1b':
+            if coloured_text[coloured_idx : coloured_idx + 1] == "\x1b":
                 # Skip the entire escape sequence
-                end = coloured_text.find('m', coloured_idx)
+                end = coloured_text.find("m", coloured_idx)
                 if end != -1:
                     coloured_idx = end + 1
                 else:
@@ -93,28 +93,28 @@ class AnsiUtils:
                 plain_idx += 1
 
         return coloured_idx
-    
+
     @staticmethod
     def get_visible_length(text: str) -> int:
         """
         Get the visible length of text (excluding ANSI codes).
-        
+
         Args:
             text: Text potentially containing ANSI codes
-            
+
         Returns:
             The number of visible characters (not counting ANSI codes)
         """
         return len(AnsiUtils.strip_ansi_codes(text))
-    
+
     @staticmethod
     def has_ansi_codes(text: str) -> bool:
         """
         Check if text contains any ANSI escape codes.
-        
+
         Args:
             text: Text to check
-            
+
         Returns:
             True if text contains ANSI codes, False otherwise
         """

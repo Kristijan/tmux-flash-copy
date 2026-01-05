@@ -5,18 +5,19 @@ This module creates a tmux popup window that displays the pane content
 with a search interface, labels for matches, and handles user input.
 """
 
+import os
 import subprocess
 import tempfile
-from pathlib import Path
-import os
 import time
-from typing import List, Optional
+from pathlib import Path
+from typing import Optional
 
-from src.search_interface import SearchInterface, SearchMatch
 from src.clipboard import Clipboard
-from src.utils import FileUtils, TmuxPaneUtils
 from src.config import FlashCopyConfig
 from src.debug_logger import DebugLogger
+from src.search_interface import SearchInterface, SearchMatch
+from src.utils import FileUtils, TmuxPaneUtils
+
 
 class PopupUI:
     """Manages the interactive popup UI for searching and selecting."""
@@ -46,14 +47,14 @@ class PopupUI:
         self.config = config
         self.temp_dir = tempfile.mkdtemp()
         self.search_query = ""
-        self.current_matches: List[SearchMatch] = []
+        self.current_matches: list[SearchMatch] = []
 
     def run(self) -> tuple[Optional[str], bool]:
         """
         Run the interactive popup UI.
 
         Returns:
-            Tuple of (text, should_paste) where text is the copied text if selection 
+            Tuple of (text, should_paste) where text is the copied text if selection
             was made (None if cancelled) and should_paste is True if auto-paste is enabled
         """
         try:
@@ -79,7 +80,7 @@ class PopupUI:
         try:
             with open(pane_content_file, "w") as f:
                 f.write(self.pane_content)
-        except (IOError, OSError):
+        except OSError:
             # If we can't write the file, the interactive script will fall back to capturing
             pass
 
@@ -89,10 +90,10 @@ class PopupUI:
         if pane_dimensions:
             # Calculate popup position to perfectly overlay the pane
             popup_pos = TmuxPaneUtils.calculate_popup_position(pane_dimensions)
-            popup_x = popup_pos['x']
-            popup_y = popup_pos['y']
-            popup_width = popup_pos['width']
-            popup_height = popup_pos['height']
+            popup_x = popup_pos["x"]
+            popup_y = popup_pos["y"]
+            popup_width = popup_pos["width"]
+            popup_height = popup_pos["height"]
         else:
             # Fallback: Get window dimensions if pane dimensions unavailable
             try:
@@ -208,20 +209,20 @@ class PopupUI:
         """
         start_time = time.time()
         poll_interval = 0.05  # Poll every 50ms
-        
+
         while time.time() - start_time < timeout:
             if os.path.exists(result_file):
                 try:
-                    with open(result_file, "r") as f:
+                    with open(result_file) as f:
                         result_text = f.read().strip()
                         return result_text
-                except (IOError, OSError):
+                except OSError:
                     # File may still be being written, try again
                     time.sleep(poll_interval)
                     continue
             else:
                 # File doesn't exist yet, wait a bit and try again
                 time.sleep(poll_interval)
-        
+
         # Timeout reached, file was never found or readable
         return None

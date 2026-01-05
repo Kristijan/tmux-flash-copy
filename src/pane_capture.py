@@ -3,7 +3,6 @@ Pane capture module for extracting visible content and dimensions from tmux pane
 """
 
 import subprocess
-from typing import Dict
 
 
 class PaneCapture:
@@ -34,9 +33,9 @@ class PaneCapture:
             )
             return result.stdout
         except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"Failed to capture pane {self.pane_id}: {e}")
+            raise RuntimeError(f"Failed to capture pane {self.pane_id}: {e}") from e
 
-    def get_pane_dimensions(self) -> Dict[str, int]:
+    def get_pane_dimensions(self) -> dict[str, int]:
         """
         Get the width and height of the pane.
 
@@ -60,4 +59,4 @@ class PaneCapture:
             width, height = map(int, result.stdout.strip().split(","))
             return {"width": width, "height": height}
         except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"Failed to get pane dimensions: {e}")
+            raise RuntimeError(f"Failed to get pane dimensions: {e}") from e
