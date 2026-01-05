@@ -7,7 +7,7 @@ with consistent error handling and type conversion.
 
 import subprocess
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Optional
 
 
 @dataclass
@@ -50,7 +50,7 @@ class ConfigLoader:
                 capture_output=True,
                 text=True,
                 check=False,
-                timeout=5
+                timeout=5,
             )
             if result.returncode == 0:
                 return result.stdout.strip()
@@ -76,7 +76,7 @@ class ConfigLoader:
                 capture_output=True,
                 text=True,
                 check=False,
-                timeout=5
+                timeout=5,
             )
             if result.returncode == 0:
                 return result.stdout.strip()
@@ -98,7 +98,7 @@ class ConfigLoader:
         return value.lower() in ("on", "true", "1", "yes")
 
     @staticmethod
-    def parse_choice(value: str, choices: List[str]) -> Optional[str]:
+    def parse_choice(value: str, choices: list[str]) -> Optional[str]:
         """
         Parse and validate a choice from a list of allowed values.
 
@@ -147,7 +147,7 @@ class ConfigLoader:
         return ConfigLoader._read_tmux_option(option_name, default)
 
     @staticmethod
-    def get_choice(option_name: str, choices: List[str], default: str = "") -> str:
+    def get_choice(option_name: str, choices: list[str], default: str = "") -> str:
         """
         Get a choice configuration option with validation.
 
@@ -190,29 +190,30 @@ class ConfigLoader:
 
         # Fallback to tmux's built-in word-separators window option
         output = ConfigLoader._read_tmux_window_option("word-separators", "")
-        
+
         if not output or '"' not in output:
             return default
-        
+
         try:
             # Output format: word-separators "value"
             # Extract the quoted value
             start = output.find('"')
             end = output.rfind('"')
-            
+
             if start != -1 and end != -1 and start < end:
                 # Get the quoted string and decode escape sequences
-                quoted_value = output[start:end+1]
+                quoted_value = output[start : end + 1]
                 try:
                     # Use ast.literal_eval to properly decode the quoted string
                     import ast
+
                     return ast.literal_eval(quoted_value)
                 except (ValueError, SyntaxError):
                     # Fallback: just extract between quotes without decoding
-                    return output[start+1:end]
+                    return output[start + 1 : end]
         except Exception:
             pass
-        
+
         return default
 
     @staticmethod
@@ -227,24 +228,26 @@ class ConfigLoader:
         """
         return FlashCopyConfig(
             ui_mode=ConfigLoader.get_choice(
-                "@flash-copy-ui-mode",
-                choices=["popup", "window"],
-                default="popup"
+                "@flash-copy-ui-mode", choices=["popup", "window"], default="popup"
             ),
             auto_paste=ConfigLoader.get_bool("@flash-copy-auto-paste", default=False),
             reverse_search=ConfigLoader.get_bool("@flash-copy-reverse-search", default=True),
             case_sensitive=ConfigLoader.get_bool("@flash-copy-case-sensitive", default=False),
             word_separators=ConfigLoader.get_word_separators(),
-            prompt_placeholder_text=ConfigLoader.get_string("@flash-copy-prompt-placeholder-text", default="search..."),
-            highlight_colour=ConfigLoader.get_string("@flash-copy-highlight-colour", default="\033[1;33m"),
+            prompt_placeholder_text=ConfigLoader.get_string(
+                "@flash-copy-prompt-placeholder-text", default="search..."
+            ),
+            highlight_colour=ConfigLoader.get_string(
+                "@flash-copy-highlight-colour", default="\033[1;33m"
+            ),
             label_colour=ConfigLoader.get_string("@flash-copy-label-colour", default="\033[1;32m"),
             prompt_position=ConfigLoader.get_choice(
-                "@flash-copy-prompt-position",
-                choices=["top", "bottom"],
-                default="bottom"
+                "@flash-copy-prompt-position", choices=["top", "bottom"], default="bottom"
             ),
             prompt_indicator=ConfigLoader.get_string("@flash-copy-prompt-indicator", default=">"),
             prompt_colour=ConfigLoader.get_string("@flash-copy-prompt-colour", default="\033[1m"),
-            prompt_separator_colour=ConfigLoader.get_string("@flash-copy-prompt-separator-colour", default="\033[38;5;242m"),
+            prompt_separator_colour=ConfigLoader.get_string(
+                "@flash-copy-prompt-separator-colour", default="\033[38;5;242m"
+            ),
             debug_enabled=ConfigLoader.get_bool("@flash-copy-debug", default=False),
         )

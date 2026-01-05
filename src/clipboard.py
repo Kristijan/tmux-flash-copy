@@ -7,6 +7,7 @@ with native system tools (pbcopy/xclip) as fallbacks when available.
 import os
 import sys
 from typing import Optional
+
 from src.utils import SubprocessUtils
 
 
@@ -19,7 +20,7 @@ class Clipboard:
     @staticmethod
     def _tmux_osc52(text: str) -> bool:
         """Use tmux set-buffer -w to copy via OSC52.
-        
+
         The -w flag tells tmux to send the buffer to the system clipboard
         via OSC52 passthrough (requires tmux 3.2+ and terminal OSC52 support).
         """
@@ -94,8 +95,9 @@ class Clipboard:
         return False
 
     @staticmethod
-    def copy_and_paste(text: str, pane_id: Optional[str] = None,
-                       auto_paste: bool = False, logger=None) -> bool:
+    def copy_and_paste(
+        text: str, pane_id: Optional[str] = None, auto_paste: bool = False, logger=None
+    ) -> bool:
         """Copy text to clipboard and optionally paste to pane.
 
         Args:
@@ -114,9 +116,7 @@ class Clipboard:
         # Optionally paste to pane
         if auto_paste and pane_id:
             try:
-                SubprocessUtils.run_command_quiet(
-                    ["tmux", "set-buffer", "-b", "flash-paste", text]
-                )
+                SubprocessUtils.run_command_quiet(["tmux", "set-buffer", "-b", "flash-paste", text])
                 SubprocessUtils.run_command_quiet(
                     ["tmux", "paste-buffer", "-b", "flash-paste", "-t", pane_id]
                 )

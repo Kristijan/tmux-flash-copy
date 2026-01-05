@@ -6,18 +6,18 @@ Only logs when @flash-copy-debug is enabled.
 """
 
 import os
+import subprocess
 import sys
 import threading
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 from typing import Optional
-import subprocess
 
 
 class DebugLogger:
     """Thread-safe debug logger with automatic rotation."""
 
-    _instance: Optional['DebugLogger'] = None
+    _instance: Optional["DebugLogger"] = None
     _lock = threading.Lock()
 
     MAX_LOG_SIZE = 5 * 1024 * 1024  # 5MB
@@ -38,7 +38,7 @@ class DebugLogger:
             self._ensure_log_file()
 
     @classmethod
-    def get_instance(cls, enabled: bool = False, log_file: Optional[str] = None) -> 'DebugLogger':
+    def get_instance(cls, enabled: bool = False, log_file: Optional[str] = None) -> "DebugLogger":
         """Get or create the singleton logger instance."""
         if cls._instance is None:
             with cls._lock:
@@ -107,15 +107,15 @@ class DebugLogger:
         if not self.enabled:
             return
 
-        timestamp = datetime.now().isoformat(timespec='milliseconds')
+        timestamp = datetime.now().isoformat(timespec="milliseconds")
         log_line = f"[{timestamp}] {message}\n"
 
         with self._lock:
             try:
-                with open(self.log_file, 'a', encoding='utf-8') as f:
+                with open(self.log_file, "a", encoding="utf-8") as f:
                     f.write(log_line)
                     f.flush()
-            except (OSError, IOError) as e:
+            except OSError as e:
                 print(f"Warning: Failed to write to debug log: {e}", file=sys.stderr)
 
     def log_section(self, title: str):
@@ -159,11 +159,7 @@ def get_tmux_version() -> str:
     """Get tmux version."""
     try:
         result = subprocess.run(
-            ["tmux", "-V"],
-            capture_output=True,
-            text=True,
-            check=True,
-            timeout=2
+            ["tmux", "-V"], capture_output=True, text=True, check=True, timeout=2
         )
         return result.stdout.strip()
     except Exception:
@@ -178,7 +174,7 @@ def get_current_session_name() -> str:
             capture_output=True,
             text=True,
             check=True,
-            timeout=2
+            timeout=2,
         )
         return result.stdout.strip()
     except Exception:
@@ -193,7 +189,7 @@ def get_current_window_index() -> str:
             capture_output=True,
             text=True,
             check=True,
-            timeout=2
+            timeout=2,
         )
         return result.stdout.strip()
     except Exception:
@@ -208,7 +204,7 @@ def get_tmux_sessions() -> list:
             capture_output=True,
             text=True,
             check=False,
-            timeout=2
+            timeout=2,
         )
         if result.returncode == 0:
             sessions = []
@@ -231,7 +227,7 @@ def get_tmux_windows() -> list:
             capture_output=True,
             text=True,
             check=False,
-            timeout=2
+            timeout=2,
         )
         if result.returncode == 0:
             windows = []
@@ -239,11 +235,7 @@ def get_tmux_windows() -> list:
                 if line:
                     parts = line.split()
                     if len(parts) >= 3:
-                        windows.append({
-                            "index": parts[0],
-                            "name": parts[1],
-                            "panes": parts[2]
-                        })
+                        windows.append({"index": parts[0], "name": parts[1], "panes": parts[2]})
             return windows
         return []
     except Exception:
@@ -254,11 +246,16 @@ def get_tmux_panes() -> list:
     """Get list of panes in current window."""
     try:
         result = subprocess.run(
-            ["tmux", "list-panes", "-F", "#{pane_id} #{pane_width} #{pane_height} #{pane_current_command}"],
+            [
+                "tmux",
+                "list-panes",
+                "-F",
+                "#{pane_id} #{pane_width} #{pane_height} #{pane_current_command}",
+            ],
             capture_output=True,
             text=True,
             check=False,
-            timeout=2
+            timeout=2,
         )
         if result.returncode == 0:
             panes = []
@@ -266,12 +263,14 @@ def get_tmux_panes() -> list:
                 if line:
                     parts = line.split()
                     if len(parts) >= 4:
-                        panes.append({
-                            "id": parts[0],
-                            "width": parts[1],
-                            "height": parts[2],
-                            "command": parts[3]
-                        })
+                        panes.append(
+                            {
+                                "id": parts[0],
+                                "width": parts[1],
+                                "height": parts[2],
+                                "command": parts[3],
+                            }
+                        )
             return panes
         return []
     except Exception:
@@ -282,11 +281,16 @@ def get_tmux_panes_with_positions() -> list:
     """Get list of panes with their positions in current window."""
     try:
         result = subprocess.run(
-            ["tmux", "list-panes", "-F", "#{pane_id} #{pane_left} #{pane_top} #{pane_right} #{pane_bottom} #{pane_width} #{pane_height}"],
+            [
+                "tmux",
+                "list-panes",
+                "-F",
+                "#{pane_id} #{pane_left} #{pane_top} #{pane_right} #{pane_bottom} #{pane_width} #{pane_height}",
+            ],
             capture_output=True,
             text=True,
             check=False,
-            timeout=2
+            timeout=2,
         )
         if result.returncode == 0:
             panes = []
@@ -294,15 +298,17 @@ def get_tmux_panes_with_positions() -> list:
                 if line:
                     parts = line.split()
                     if len(parts) >= 7:
-                        panes.append({
-                            "id": parts[0],
-                            "left": int(parts[1]),
-                            "top": int(parts[2]),
-                            "right": int(parts[3]),
-                            "bottom": int(parts[4]),
-                            "width": int(parts[5]),
-                            "height": int(parts[6])
-                        })
+                        panes.append(
+                            {
+                                "id": parts[0],
+                                "left": int(parts[1]),
+                                "top": int(parts[2]),
+                                "right": int(parts[3]),
+                                "bottom": int(parts[4]),
+                                "width": int(parts[5]),
+                                "height": int(parts[6]),
+                            }
+                        )
             return panes
         return []
     except Exception:
@@ -335,7 +341,7 @@ def draw_pane_layout(panes_with_positions: list) -> list:
     grid_height = int(max_bottom / scale) + 2
 
     # Initialize grid with spaces
-    grid = [[' ' for _ in range(grid_width)] for _ in range(grid_height)]
+    grid = [[" " for _ in range(grid_width)] for _ in range(grid_height)]
 
     # Draw borders for each pane
     for pane in panes_with_positions:
@@ -348,27 +354,27 @@ def draw_pane_layout(panes_with_positions: list) -> list:
         for x in range(left, right + 1):
             if x < grid_width:
                 if top < grid_height:
-                    grid[top][x] = '─'
+                    grid[top][x] = "─"
                 if bottom < grid_height:
-                    grid[bottom][x] = '─'
+                    grid[bottom][x] = "─"
 
         # Draw left and right borders
         for y in range(top, bottom + 1):
             if y < grid_height:
                 if left < grid_width:
-                    grid[y][left] = '│'
+                    grid[y][left] = "│"
                 if right < grid_width:
-                    grid[y][right] = '│'
+                    grid[y][right] = "│"
 
         # Draw corners
         if top < grid_height and left < grid_width:
-            grid[top][left] = '┌'
+            grid[top][left] = "┌"
         if top < grid_height and right < grid_width:
-            grid[top][right] = '┐'
+            grid[top][right] = "┐"
         if bottom < grid_height and left < grid_width:
-            grid[bottom][left] = '└'
+            grid[bottom][left] = "└"
         if bottom < grid_height and right < grid_width:
-            grid[bottom][right] = '┘'
+            grid[bottom][right] = "┘"
 
         # Add pane info in the center
         center_y = (top + bottom) // 2
@@ -386,4 +392,4 @@ def draw_pane_layout(panes_with_positions: list) -> list:
                     grid[center_y][x] = char
 
     # Convert grid to strings
-    return [''.join(row) for row in grid]
+    return ["".join(row) for row in grid]

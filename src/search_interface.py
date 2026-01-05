@@ -8,7 +8,7 @@ and keyboard labels are generated for quick selection.
 
 import re
 from collections import defaultdict
-from typing import Dict, List, Optional
+from typing import Optional
 
 
 class SearchMatch:
@@ -22,10 +22,12 @@ class SearchMatch:
         self.col = col
         self.label: Optional[str] = None
         self.match_start: int = 0  # Start position of match within the text
-        self.match_end: int = 0    # End position of match within the text
+        self.match_end: int = 0  # End position of match within the text
 
     def __repr__(self):
-        return f"SearchMatch(text='{self.text}', line={self.line}, col={self.col}, label={self.label})"
+        return (
+            f"SearchMatch(text='{self.text}', line={self.line}, col={self.col}, label={self.label})"
+        )
 
 
 class SearchInterface:
@@ -35,9 +37,15 @@ class SearchInterface:
     DEFAULT_LABELS = "asdfghjklqwertyuiopzxcvbnmASDFGHJKLQWERTYUIOPZXCVBNM"
 
     # Cache compiled regex patterns
-    _pattern_cache: Dict[Optional[str], re.Pattern] = {}
+    _pattern_cache: dict[Optional[str], re.Pattern] = {}
 
-    def __init__(self, pane_content: str, reverse_search: bool = True, word_separators: Optional[str] = None, case_sensitive: bool = False):
+    def __init__(
+        self,
+        pane_content: str,
+        reverse_search: bool = True,
+        word_separators: Optional[str] = None,
+        case_sensitive: bool = False,
+    ):
         """
         Initialise the search interface.
 
@@ -52,7 +60,7 @@ class SearchInterface:
         self.pane_content = pane_content
         self.lines = pane_content.split("\n")
         self.search_query = ""
-        self.matches: List[SearchMatch] = []
+        self.matches: list[SearchMatch] = []
         self.reverse_search = reverse_search
         self.word_separators = word_separators
         self.case_sensitive = case_sensitive
@@ -76,10 +84,10 @@ class SearchInterface:
         if word_separators:
             # Escape for character class
             def escape_for_char_class(s):
-                s = s.replace('\\', '\\\\')
-                s = s.replace(']', '\\]')
-                if s.startswith('^'):
-                    s = '^' + s[1:].replace('^', '\\^')
+                s = s.replace("\\", "\\\\")
+                s = s.replace("]", "\\]")
+                if s.startswith("^"):
+                    s = "^" + s[1:].replace("^", "\\^")
                 return s
 
             escaped = escape_for_char_class(word_separators)
@@ -93,7 +101,7 @@ class SearchInterface:
 
     def _build_word_index(self):
         """Build an index of all words in the pane content."""
-        self.word_index: Dict[str, List[SearchMatch]] = defaultdict(list)
+        self.word_index: dict[str, list[SearchMatch]] = defaultdict(list)
 
         # Get cached or compile word pattern
         word_pattern = self._get_word_pattern(self.word_separators)
@@ -119,7 +127,7 @@ class SearchInterface:
 
             pos += len(line) + 1  # +1 for newline
 
-    def search(self, query: str) -> List[SearchMatch]:
+    def search(self, query: str) -> list[SearchMatch]:
         """
         Search for words matching the query.
 
@@ -142,7 +150,7 @@ class SearchInterface:
 
         # Use the query as-is if case-sensitive, or lowercase if case-insensitive
         search_query = query if self.case_sensitive else query.lower()
-        
+
         # Find all words that contain the query
         for word, matches_list_from_index in self.word_index.items():
             # Match words that contain the query (anywhere in the word)
@@ -153,7 +161,7 @@ class SearchInterface:
                         match_pos = match.text.find(search_query)
                     else:
                         match_pos = match.text.lower().find(search_query)
-                    
+
                     if match_pos >= 0:
                         # Create a new match object with match position info
                         new_match = SearchMatch(
@@ -178,7 +186,7 @@ class SearchInterface:
 
         # Sort by position in content
         unique_matches.sort(key=lambda m: m.start_pos)
-        
+
         # Reverse sort if reverse_search is enabled (bottom to top)
         if self.reverse_search:
             unique_matches.reverse()
@@ -191,7 +199,7 @@ class SearchInterface:
 
         return unique_matches
 
-    def _assign_labels(self, matches: List[SearchMatch]):
+    def _assign_labels(self, matches: list[SearchMatch]):
         """
         Assign keyboard labels to matches.
 
@@ -230,10 +238,7 @@ class SearchInterface:
         # Assign labels to each match
         for match in matches:
             # Get characters from this specific matched word
-            if self.case_sensitive:
-                match_chars = set(match.text)
-            else:
-                match_chars = set(match.text.lower())
+            match_chars = set(match.text) if self.case_sensitive else set(match.text.lower())
 
             # Find available labels for this match
             available_labels = []
@@ -247,7 +252,11 @@ class SearchInterface:
                     if c in query_chars or c in continuation_chars or c in match_chars:
                         continue
                 else:
-                    if label_lower in query_chars or label_lower in continuation_chars or label_lower in match_chars:
+                    if (
+                        label_lower in query_chars
+                        or label_lower in continuation_chars
+                        or label_lower in match_chars
+                    ):
                         continue
                 available_labels.append(c)
 
@@ -274,7 +283,7 @@ class SearchInterface:
                 return match
         return None
 
-    def get_matches_at_line(self, line_num: int) -> List[SearchMatch]:
+    def get_matches_at_line(self, line_num: int) -> list[SearchMatch]:
         """
         Get all current matches on a specific line.
 

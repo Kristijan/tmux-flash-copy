@@ -19,12 +19,12 @@ from typing import Optional
 PLUGIN_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(PLUGIN_DIR))
 
+from src.ansi_utils import AnsiStyles, AnsiUtils, ControlChars, TerminalSequences  # noqa: E402
 from src.clipboard import Clipboard  # noqa: E402
-from src.pane_capture import PaneCapture  # noqa: E402
-from src.search_interface import SearchInterface  # noqa: E402
-from src.ansi_utils import AnsiUtils, AnsiStyles, TerminalSequences, ControlChars  # noqa: E402
 from src.config import FlashCopyConfig  # noqa: E402
 from src.debug_logger import DebugLogger  # noqa: E402
+from src.pane_capture import PaneCapture  # noqa: E402
+from src.search_interface import SearchInterface  # noqa: E402
 
 
 class InteractiveUI:
@@ -60,23 +60,27 @@ class InteractiveUI:
             self.pane_content_plain,
             reverse_search=config.reverse_search,
             word_separators=config.word_separators,
-            case_sensitive=config.case_sensitive
+            case_sensitive=config.case_sensitive,
         )
         self.clipboard = Clipboard()
         self.search_query = ""
         self.current_matches = []
         # Initialize debug logger if enabled
-        self.debug_logger = DebugLogger.get_instance() if hasattr(config, 'debug_enabled') and config.debug_enabled else None
+        self.debug_logger = (
+            DebugLogger.get_instance()
+            if hasattr(config, "debug_enabled") and config.debug_enabled
+            else None
+        )
 
     def _update_search(self, new_query: str):
         """
         Update search query and refresh the display.
-        
+
         This is a convenience method that handles the common pattern of:
         1. Updating the search query
         2. Running the search
         3. Refreshing the display
-        
+
         Args:
             new_query: The new search query string
         """
@@ -85,13 +89,19 @@ class InteractiveUI:
 
         # Log search query and results
         if self.debug_logger and self.debug_logger.enabled:
-            self.debug_logger.log(f"Search query: '{new_query}' -> {len(self.current_matches)} matches")
+            self.debug_logger.log(
+                f"Search query: '{new_query}' -> {len(self.current_matches)} matches"
+            )
             if self.current_matches:
                 # Log first 10 matches
-                for i, match in enumerate(self.current_matches[:10]):
-                    self.debug_logger.log(f"  [{match.label or '?'}] line {match.line}, col {match.col}: '{match.text}'")
+                for _i, match in enumerate(self.current_matches[:10]):
+                    self.debug_logger.log(
+                        f"  [{match.label or '?'}] line {match.line}, col {match.col}: '{match.text}'"
+                    )
                 if len(self.current_matches) > 10:
-                    self.debug_logger.log(f"  ... and {len(self.current_matches) - 10} more matches")
+                    self.debug_logger.log(
+                        f"  ... and {len(self.current_matches) - 10} more matches"
+                    )
 
         self._display_content()
 
@@ -112,7 +122,7 @@ class InteractiveUI:
                 if not char:  # EOF
                     return ControlChars.CTRL_C  # Treat EOF as Ctrl+C
                 return char
-            
+
             old_settings = termios.tcgetattr(fd)
             try:
                 tty.setraw(fd)
@@ -161,11 +171,20 @@ class InteractiveUI:
         """
         # Build base prompt
         if self.search_query:
-            base_output = f"{self.config.prompt_colour}{self.config.prompt_indicator}{AnsiStyles.RESET} " + self.search_query
+            base_output = (
+                f"{self.config.prompt_colour}{self.config.prompt_indicator}{AnsiStyles.RESET} "
+                + self.search_query
+            )
         elif self.config.prompt_placeholder_text:
-            base_output = f"{self.config.prompt_colour}{self.config.prompt_indicator}{AnsiStyles.RESET} {AnsiStyles.DIM}" + self.config.prompt_placeholder_text + AnsiStyles.RESET
+            base_output = (
+                f"{self.config.prompt_colour}{self.config.prompt_indicator}{AnsiStyles.RESET} {AnsiStyles.DIM}"
+                + self.config.prompt_placeholder_text
+                + AnsiStyles.RESET
+            )
         else:
-            base_output = f"{self.config.prompt_colour}{self.config.prompt_indicator}{AnsiStyles.RESET} "
+            base_output = (
+                f"{self.config.prompt_colour}{self.config.prompt_indicator}{AnsiStyles.RESET} "
+            )
 
         # Add debug indicator if enabled (right-aligned)
         if self.debug_logger and self.debug_logger.enabled:
@@ -188,10 +207,10 @@ class InteractiveUI:
     def _get_separator_line(self, term_width: int) -> str:
         """
         Build the separator line.
-        
+
         Args:
             term_width: Terminal width in characters
-            
+
         Returns:
             The formatted separator line
         """
@@ -201,13 +220,13 @@ class InteractiveUI:
     def _display_line_with_matches(self, display_line: str, line_idx: int) -> str:
         """
         Process and format a line that contains matches.
-        
+
         Applies highlighting to matched text and adds match labels.
-        
+
         Args:
             display_line: The line content with ANSI codes
             line_idx: The line index in the pane content
-            
+
         Returns:
             The line with highlights and labels applied
         """
@@ -217,21 +236,25 @@ class InteractiveUI:
         for match in sorted(matches_on_line, key=lambda m: m.col, reverse=True):
             if not match.label:
                 continue
-            
+
             # Get the matched word and its position
             word_start = match.col
             word_end = match.col + len(match.text)
             match_start_in_word = match.match_start
             match_end_in_word = match.match_end
-            
+
             # Find positions in coloured line using AnsiUtils
             coloured_word_start = AnsiUtils.map_position_to_coloured(display_line, word_start)
             coloured_word_end = AnsiUtils.map_position_to_coloured(display_line, word_end)
-            coloured_match_start_in_word = AnsiUtils.map_position_to_coloured(display_line[coloured_word_start:], match_start_in_word)
+            coloured_match_start_in_word = AnsiUtils.map_position_to_coloured(
+                display_line[coloured_word_start:], match_start_in_word
+            )
 
             # Build the replacement for this word with highlighting
             # Split into: before match, matched part (yellow), after match, label (green)
-            before_match = display_line[coloured_word_start:coloured_word_start + coloured_match_start_in_word]
+            before_match = display_line[
+                coloured_word_start : coloured_word_start + coloured_match_start_in_word
+            ]
 
             # Find the end position of the matched part in coloured line
             plain_match_end = word_start + match_end_in_word
@@ -243,7 +266,7 @@ class InteractiveUI:
 
             # Build replacement with highlight and label colours
             replacement = f"{before_match}{AnsiStyles.RESET}{self.config.highlight_colour}{plain_matched_part}{AnsiStyles.RESET}{self.config.label_colour}{match.label}{AnsiStyles.RESET}{AnsiStyles.DIM}{display_line[coloured_match_end:coloured_word_end]}"
-            
+
             # Replace in display line
             display_line = display_line[:coloured_word_start] + replacement + after_word
 
@@ -252,18 +275,18 @@ class InteractiveUI:
     def _display_pane_content(self, lines: list, lines_plain: list, available_height: int):
         """
         Display the pane content with match highlighting.
-        
+
         Args:
             lines: List of lines with ANSI codes
             lines_plain: List of plain lines without ANSI codes
             available_height: Maximum number of lines to display
         """
         content_lines_printed = 0
-        for line_idx, (line, line_plain) in enumerate(zip(lines, lines_plain)):
+        for line_idx, (line, _line_plain) in enumerate(zip(lines, lines_plain)):
             # Stop if we've filled available height
             if content_lines_printed >= available_height:
                 break
-            
+
             matches_on_line = self.search_interface.get_matches_at_line(line_idx)
 
             if not matches_on_line:
@@ -369,7 +392,7 @@ class InteractiveUI:
             sys.stdout.write(f"\033[{cursor_col}G")
 
             sys.stdout.flush()
-    
+
     def run(self) -> Optional[str]:
         """
         Run the interactive search UI.
@@ -402,7 +425,7 @@ class InteractiveUI:
                         new_query = self.search_query.rstrip()  # Remove trailing whitespace
                         if new_query:
                             i = len(new_query) - 1
-                            delimiters = ' \t-_.,;:!?/\\()[]{}'
+                            delimiters = " \t-_.,;:!?/\\()[]{}"
                             # If we're at a delimiter, skip backwards over delimiter(s) first
                             if new_query[i] in delimiters:
                                 while i >= 0 and new_query[i] in delimiters:
@@ -410,7 +433,7 @@ class InteractiveUI:
                             # Now skip backwards over the word (non-delimiter characters)
                             while i >= 0 and new_query[i] not in delimiters:
                                 i -= 1
-                            new_query = new_query[:i+1]
+                            new_query = new_query[: i + 1]
                         self._update_search(new_query)
                 elif char == ControlChars.BACKSPACE or char == ControlChars.BACKSPACE_ALT:
                     if self.search_query:
@@ -419,7 +442,9 @@ class InteractiveUI:
                     if self.current_matches:
                         # Select the first match
                         if self.debug_logger and self.debug_logger.enabled:
-                            self.debug_logger.log(f"User pressed Enter - selected first match: '{self.current_matches[0].text}'")
+                            self.debug_logger.log(
+                                f"User pressed Enter - selected first match: '{self.current_matches[0].text}'"
+                            )
                         self._save_result(self.current_matches[0].text)
                         return self.current_matches[0].text
                 elif char.isprintable():
@@ -432,7 +457,9 @@ class InteractiveUI:
                             # Label pressed - save result and exit
                             # Parent process handles clipboard/paste
                             if self.debug_logger and self.debug_logger.enabled:
-                                self.debug_logger.log(f"User selected label '{char}': '{match.text}'")
+                                self.debug_logger.log(
+                                    f"User selected label '{char}': '{match.text}'"
+                                )
                             self._save_result(match.text)
                             return match.text
 
@@ -457,24 +484,36 @@ class InteractiveUI:
 
 def main():
     """Main entry point for the interactive UI."""
-    parser = argparse.ArgumentParser(
-        description="Interactive search UI for tmux-flash-copy"
-    )
+    parser = argparse.ArgumentParser(description="Interactive search UI for tmux-flash-copy")
     parser.add_argument("--pane-id", required=True, help="The tmux pane ID")
     parser.add_argument("--temp-dir", required=True, help="Temporary directory path")
-    parser.add_argument("--pane-content-file", default="", help="Path to file containing pane content")
+    parser.add_argument(
+        "--pane-content-file", default="", help="Path to file containing pane content"
+    )
     parser.add_argument("--ui-mode", default="popup", help="UI mode: popup, window")
-    parser.add_argument("--reverse-search", default="True", help="Enable reverse search (bottom to top)")
+    parser.add_argument(
+        "--reverse-search", default="True", help="Enable reverse search (bottom to top)"
+    )
     parser.add_argument("--word-separators", default="", help="Word separator characters")
     parser.add_argument("--case-sensitive", default="False", help="Enable case-sensitive search")
     parser.add_argument("--auto-paste", default="False", help="Automatically paste after copying")
-    parser.add_argument("--prompt-placeholder-text", default="search...", help="Ghost text for empty prompt input")
-    parser.add_argument("--highlight-colour", default="\033[1;33m", help="ANSI colour for highlighted text")
+    parser.add_argument(
+        "--prompt-placeholder-text", default="search...", help="Ghost text for empty prompt input"
+    )
+    parser.add_argument(
+        "--highlight-colour", default="\033[1;33m", help="ANSI colour for highlighted text"
+    )
     parser.add_argument("--label-colour", default="\033[1;32m", help="ANSI colour for labels")
-    parser.add_argument("--prompt-position", default="bottom", help="Position of prompt (top or bottom)")
+    parser.add_argument(
+        "--prompt-position", default="bottom", help="Position of prompt (top or bottom)"
+    )
     parser.add_argument("--prompt-indicator", default=">", help="Prompt character/string")
     parser.add_argument("--prompt-colour", default="\033[1m", help="ANSI colour for the prompt")
-    parser.add_argument("--prompt-separator-colour", default="\033[38;5;242m", help="ANSI colour for the prompt separator line")
+    parser.add_argument(
+        "--prompt-separator-colour",
+        default="\033[38;5;242m",
+        help="ANSI colour for the prompt separator line",
+    )
     parser.add_argument("--debug-enabled", default="false", help="Enable debug logging")
     parser.add_argument("--debug-log-file", default="", help="Path to debug log file")
 
@@ -485,9 +524,9 @@ def main():
         if args.pane_content_file and os.path.exists(args.pane_content_file):
             # Read from file to avoid redundant capture
             try:
-                with open(args.pane_content_file, "r") as f:
+                with open(args.pane_content_file) as f:
                     pane_content = f.read()
-            except (IOError, OSError):
+            except OSError:
                 # File read failed, fall back to capturing
                 capture = PaneCapture(args.pane_id)
                 pane_content = capture.capture_pane()
@@ -532,12 +571,15 @@ def main():
         # In popup mode, the parent process handles it
         if result and config.ui_mode == "window":
             logger = DebugLogger.get_instance() if config.debug_enabled else None
-            ui.clipboard.copy_and_paste(result, pane_id=args.pane_id, auto_paste=config.auto_paste, logger=logger)
+            ui.clipboard.copy_and_paste(
+                result, pane_id=args.pane_id, auto_paste=config.auto_paste, logger=logger
+            )
 
         # Clean up temp directory in window mode (parent has already exited)
         if config.ui_mode == "window":
             try:
                 import shutil
+
                 shutil.rmtree(args.temp_dir, ignore_errors=True)
             except Exception:
                 pass  # Ignore cleanup errors
@@ -547,6 +589,7 @@ def main():
 
     except Exception as e:
         import traceback
+
         error_msg = f"Error: {e}\n{traceback.format_exc()}"
         print(error_msg, file=sys.stderr)
 

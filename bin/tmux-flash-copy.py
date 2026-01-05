@@ -6,32 +6,33 @@ Inspired by flash.nvim, this plugin allows you to search visible text in the
 current tmux pane, label it with keyboard shortcuts, and copy it to the clipboard.
 """
 
+import contextlib
 import subprocess
-from pathlib import Path
 import sys
 import tempfile
+from pathlib import Path
 
 # Add parent directory to path for imports
 PLUGIN_DIR = Path(__file__).parent.parent
 sys.path.insert(0, str(PLUGIN_DIR))
 
-from src.pane_capture import PaneCapture  # noqa: E402
-from src.search_interface import SearchInterface  # noqa: E402
-from src.popup_ui import PopupUI  # noqa: E402
 from src.clipboard import Clipboard  # noqa: E402
 from src.config import ConfigLoader  # noqa: E402
 from src.debug_logger import (  # noqa: E402
     DebugLogger,
-    get_python_version,
-    get_tmux_version,
+    draw_pane_layout,
     get_current_session_name,
     get_current_window_index,
-    get_tmux_sessions,
-    get_tmux_windows,
+    get_python_version,
     get_tmux_panes,
     get_tmux_panes_with_positions,
-    draw_pane_layout
+    get_tmux_sessions,
+    get_tmux_version,
+    get_tmux_windows,
 )
+from src.pane_capture import PaneCapture  # noqa: E402
+from src.popup_ui import PopupUI  # noqa: E402
+from src.search_interface import SearchInterface  # noqa: E402
 
 
 def get_tmux_pane_id():
@@ -77,21 +78,25 @@ def main():
 
             # Log all configuration
             logger.log_section("Configuration Settings")
-            logger.log_dict({
-                "ui_mode": config.ui_mode,
-                "auto_paste": config.auto_paste,
-                "reverse_search": config.reverse_search,
-                "case_sensitive": config.case_sensitive,
-                "word_separators": repr(config.word_separators) if config.word_separators else "(default)",
-                "prompt_position": config.prompt_position,
-                "prompt_indicator": config.prompt_indicator,
-                "prompt_placeholder_text": config.prompt_placeholder_text,
-                "highlight_colour": repr(config.highlight_colour),
-                "label_colour": repr(config.label_colour),
-                "prompt_colour": repr(config.prompt_colour),
-                "prompt_separator_colour": repr(config.prompt_separator_colour),
-                "debug_enabled": config.debug_enabled,
-            })
+            logger.log_dict(
+                {
+                    "ui_mode": config.ui_mode,
+                    "auto_paste": config.auto_paste,
+                    "reverse_search": config.reverse_search,
+                    "case_sensitive": config.case_sensitive,
+                    "word_separators": repr(config.word_separators)
+                    if config.word_separators
+                    else "(default)",
+                    "prompt_position": config.prompt_position,
+                    "prompt_indicator": config.prompt_indicator,
+                    "prompt_placeholder_text": config.prompt_placeholder_text,
+                    "highlight_colour": repr(config.highlight_colour),
+                    "label_colour": repr(config.label_colour),
+                    "prompt_colour": repr(config.prompt_colour),
+                    "prompt_separator_colour": repr(config.prompt_separator_colour),
+                    "debug_enabled": config.debug_enabled,
+                }
+            )
 
             # Log tmux environment
             logger.log_section("Tmux Environment")
@@ -104,20 +109,24 @@ def main():
             sessions = get_tmux_sessions()
             logger.log(f"Sessions ({len(sessions)}):")
             for session in sessions:
-                marker = " ← ACTIVE" if session['name'] == current_session else ""
+                marker = " ← ACTIVE" if session["name"] == current_session else ""
                 logger.log(f"  - {session['name']} ({session['windows']} windows){marker}")
 
             windows = get_tmux_windows()
             logger.log(f"Windows ({len(windows)}):")
             for window in windows:
-                marker = " ← ACTIVE" if window['index'] == current_window else ""
-                logger.log(f"  - [{window['index']}] {window['name']} ({window['panes']} panes){marker}")
+                marker = " ← ACTIVE" if window["index"] == current_window else ""
+                logger.log(
+                    f"  - [{window['index']}] {window['name']} ({window['panes']} panes){marker}"
+                )
 
             panes = get_tmux_panes()
             logger.log(f"Panes ({len(panes)}):")
             for pane in panes:
-                marker = " ← ACTIVE" if pane['id'] == current_pane else ""
-                logger.log(f"  - {pane['id']}: {pane['width']}x{pane['height']} ({pane['command']}){marker}")
+                marker = " ← ACTIVE" if pane["id"] == current_pane else ""
+                logger.log(
+                    f"  - {pane['id']}: {pane['width']}x{pane['height']} ({pane['command']}){marker}"
+                )
 
             # Draw ASCII pane layout
             logger.log_section("Pane Layout (ASCII)")
@@ -145,7 +154,7 @@ def main():
             try:
                 with open(pane_content_file, "w") as f:
                     f.write(pane_content)
-            except (IOError, OSError):
+            except OSError:
                 # If we can't write the file, the interactive script will fall back to capturing
                 pass
 
@@ -153,34 +162,49 @@ def main():
             interactive_cmd = [
                 "python3",
                 str(script_path),
-                "--pane-id", pane_id,
-                "--temp-dir", temp_dir,
-                "--pane-content-file", str(pane_content_file),
-                "--ui-mode", config.ui_mode,
-                "--reverse-search", "true" if config.reverse_search else "false",
-                "--word-separators", config.word_separators or "",
-                "--case-sensitive", "true" if config.case_sensitive else "false",
-                "--auto-paste", "true" if config.auto_paste else "false",
-                "--prompt-placeholder-text", config.prompt_placeholder_text,
-                "--highlight-colour", config.highlight_colour,
-                "--label-colour", config.label_colour,
-                "--prompt-position", config.prompt_position,
-                "--prompt-indicator", config.prompt_indicator,
-                "--prompt-colour", config.prompt_colour,
-                "--prompt-separator-colour", config.prompt_separator_colour,
-                "--debug-enabled", "true" if config.debug_enabled else "false",
-                "--debug-log-file", DebugLogger.get_instance().log_file if config.debug_enabled else "",
+                "--pane-id",
+                pane_id,
+                "--temp-dir",
+                temp_dir,
+                "--pane-content-file",
+                str(pane_content_file),
+                "--ui-mode",
+                config.ui_mode,
+                "--reverse-search",
+                "true" if config.reverse_search else "false",
+                "--word-separators",
+                config.word_separators or "",
+                "--case-sensitive",
+                "true" if config.case_sensitive else "false",
+                "--auto-paste",
+                "true" if config.auto_paste else "false",
+                "--prompt-placeholder-text",
+                config.prompt_placeholder_text,
+                "--highlight-colour",
+                config.highlight_colour,
+                "--label-colour",
+                config.label_colour,
+                "--prompt-position",
+                config.prompt_position,
+                "--prompt-indicator",
+                config.prompt_indicator,
+                "--prompt-colour",
+                config.prompt_colour,
+                "--prompt-separator-colour",
+                config.prompt_separator_colour,
+                "--debug-enabled",
+                "true" if config.debug_enabled else "false",
+                "--debug-log-file",
+                DebugLogger.get_instance().log_file if config.debug_enabled else "",
             ]
 
             # Launch in a new window
-            try:
+            with contextlib.suppress(subprocess.SubprocessError):
                 subprocess.Popen(
                     ["tmux", "new-window", "-n", "flash-copy"] + interactive_cmd,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                 )
-            except subprocess.SubprocessError:
-                pass
 
             sys.exit(0)
 
@@ -189,7 +213,7 @@ def main():
             pane_content,
             reverse_search=config.reverse_search,
             word_separators=config.word_separators,
-            case_sensitive=config.case_sensitive
+            case_sensitive=config.case_sensitive,
         )
 
         # Initialise clipboard helper
@@ -210,13 +234,16 @@ def main():
         if result:
             # Copy to clipboard and optionally paste
             logger = DebugLogger.get_instance() if config.debug_enabled else None
-            clipboard.copy_and_paste(result, pane_id=pane_id, auto_paste=should_paste, logger=logger)
+            clipboard.copy_and_paste(
+                result, pane_id=pane_id, auto_paste=should_paste, logger=logger
+            )
 
     except KeyboardInterrupt:
         print("\nSearch cancelled", file=sys.stderr)
         sys.exit(0)
     except Exception as e:
         import traceback
+
         error_msg = f"Error: {e}\n{traceback.format_exc()}"
         print(error_msg, file=sys.stderr)
         sys.exit(1)
