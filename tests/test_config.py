@@ -11,7 +11,6 @@ class TestFlashCopyConfig:
     def test_default_values(self):
         """Test default configuration values."""
         config = FlashCopyConfig()
-        assert config.ui_mode == "popup"
         assert config.auto_paste is False
         assert config.reverse_search is True
         assert config.case_sensitive is False
@@ -27,7 +26,6 @@ class TestFlashCopyConfig:
     def test_custom_values(self):
         """Test configuration with custom values."""
         config = FlashCopyConfig(
-            ui_mode="window",
             auto_paste=True,
             reverse_search=False,
             case_sensitive=True,
@@ -40,7 +38,6 @@ class TestFlashCopyConfig:
             prompt_colour="\033[1;36m",
             debug_enabled=True,
         )
-        assert config.ui_mode == "window"
         assert config.auto_paste is True
         assert config.reverse_search is False
         assert config.case_sensitive is True
@@ -156,19 +153,19 @@ class TestConfigLoader:
 
     def test_parse_choice_valid(self):
         """Test parsing valid choice."""
-        choices = ["popup", "window"]
-        assert ConfigLoader.parse_choice("popup", choices) == "popup"
-        assert ConfigLoader.parse_choice("window", choices) == "window"
+        choices = ["top", "bottom"]
+        assert ConfigLoader.parse_choice("top", choices) == "top"
+        assert ConfigLoader.parse_choice("bottom", choices) == "bottom"
 
     def test_parse_choice_case_insensitive(self):
         """Test parsing choice with case-insensitive matching."""
-        choices = ["popup", "window"]
-        assert ConfigLoader.parse_choice("POPUP", choices) == "popup"
-        assert ConfigLoader.parse_choice("Window", choices) == "window"
+        choices = ["top", "bottom"]
+        assert ConfigLoader.parse_choice("TOP", choices) == "top"
+        assert ConfigLoader.parse_choice("Bottom", choices) == "bottom"
 
     def test_parse_choice_invalid(self):
         """Test parsing invalid choice."""
-        choices = ["popup", "window"]
+        choices = ["top", "bottom"]
         assert ConfigLoader.parse_choice("invalid", choices) is None
         assert ConfigLoader.parse_choice("", choices) is None
 
@@ -221,22 +218,20 @@ class TestConfigLoader:
     @patch("src.config.ConfigLoader._read_tmux_option")
     def test_get_choice_valid(self, mock_read):
         """Test getting choice option with valid value."""
-        mock_read.return_value = "popup"
+        mock_read.return_value = "top"
 
-        result = ConfigLoader.get_choice("@test-option", choices=["popup", "window"])
+        result = ConfigLoader.get_choice("@test-option", choices=["top", "bottom"])
 
-        assert result == "popup"
+        assert result == "top"
 
     @patch("src.config.ConfigLoader._read_tmux_option")
     def test_get_choice_invalid(self, mock_read):
         """Test getting choice option with invalid value."""
         mock_read.return_value = "invalid"
 
-        result = ConfigLoader.get_choice(
-            "@test-option", choices=["popup", "window"], default="popup"
-        )
+        result = ConfigLoader.get_choice("@test-option", choices=["top", "bottom"], default="top")
 
-        assert result == "popup"
+        assert result == "top"
 
     @patch("src.config.ConfigLoader._read_tmux_option")
     def test_get_choice_empty(self, mock_read):
@@ -244,10 +239,10 @@ class TestConfigLoader:
         mock_read.return_value = ""
 
         result = ConfigLoader.get_choice(
-            "@test-option", choices=["popup", "window"], default="window"
+            "@test-option", choices=["top", "bottom"], default="bottom"
         )
 
-        assert result == "window"
+        assert result == "bottom"
 
     @patch("src.config.ConfigLoader._read_tmux_option")
     def test_get_word_separators_custom_override(self, mock_read):
@@ -320,7 +315,7 @@ class TestConfigLoader:
     @patch("src.config.ConfigLoader.get_word_separators")
     def test_load_all_flash_copy_config(self, mock_word_sep, mock_string, mock_bool, mock_choice):
         """Test loading all flash-copy configuration."""
-        mock_choice.side_effect = ["popup", "bottom"]
+        mock_choice.side_effect = ["bottom"]
         mock_bool.side_effect = [False, True, False, False]
         mock_word_sep.return_value = None
         mock_string.side_effect = [
@@ -334,7 +329,6 @@ class TestConfigLoader:
         config = ConfigLoader.load_all_flash_copy_config()
 
         assert isinstance(config, FlashCopyConfig)
-        assert config.ui_mode == "popup"
         assert config.auto_paste is False
         assert config.reverse_search is True
         assert config.case_sensitive is False

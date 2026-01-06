@@ -104,7 +104,6 @@ The debug log captures information about each tmux-flash-copy session:
 [2026-01-05T10:30:45.126] ================================================================================
 [2026-01-05T10:30:45.126]   Configuration Settings
 [2026-01-05T10:30:45.126] ================================================================================
-[2026-01-05T10:30:45.126] ui_mode: popup
 [2026-01-05T10:30:45.126] auto_paste: False
 [2026-01-05T10:30:45.126] reverse_search: True
 [2026-01-05T10:30:45.126] case_sensitive: False
@@ -236,9 +235,8 @@ Look for pane dimensions and positions.
 
 **Solution**:
 
-1. Try `@flash-copy-ui-mode "window"` instead of popup
-2. Check tmux version: `tmux -V` (should be 3.2+)
-3. Verify pane dimensions match your expectations
+1. Check tmux version: `tmux -V` (should be 3.2+)
+2. Verify pane dimensions match your expectations
 
 ### Issue: Labels Not Appearing
 
@@ -294,7 +292,6 @@ grep "\[" ~/.tmux-flash-copy-debug.log | tail -20
 
 1. Use more specific search queries
 2. Simplify word separators if customized
-3. Consider using `@flash-copy-ui-mode "window"` instead of popup
 
 ## Reporting Issues
 

@@ -6,10 +6,8 @@ Inspired by flash.nvim, this plugin allows you to search visible text in the
 current tmux pane, label it with keyboard shortcuts, and copy it to the clipboard.
 """
 
-import contextlib
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 # Add parent directory to path for imports
@@ -80,7 +78,6 @@ def main():
             logger.log_section("Configuration Settings")
             logger.log_dict(
                 {
-                    "ui_mode": config.ui_mode,
                     "auto_paste": config.auto_paste,
                     "reverse_search": config.reverse_search,
                     "case_sensitive": config.case_sensitive,
@@ -139,71 +136,6 @@ def main():
             if dimensions:
                 logger.log_section("Current Pane Dimensions (for popup positioning)")
                 logger.log_dict(dimensions)
-
-        # Handle window mode by launching in a new tmux window
-        if config.ui_mode == "window":
-            # Build the command to run the interactive script in a new window
-            script_path = Path(__file__).parent / "tmux-flash-copy-interactive.py"
-
-            # Create a temporary temp directory for this session
-            temp_dir = tempfile.mkdtemp()
-
-            # Save pane content to temp file to avoid re-capturing in interactive script
-            pane_content_file = Path(temp_dir) / "pane_content.txt"
-            try:
-                with open(pane_content_file, "w") as f:
-                    f.write(pane_content)
-            except OSError:
-                # If we can't write the file, the interactive script will fall back to capturing
-                pass
-
-            # Build command for the interactive script
-            interactive_cmd = [
-                "python3",
-                str(script_path),
-                "--pane-id",
-                pane_id,
-                "--temp-dir",
-                temp_dir,
-                "--pane-content-file",
-                str(pane_content_file),
-                "--ui-mode",
-                config.ui_mode,
-                "--reverse-search",
-                "true" if config.reverse_search else "false",
-                "--word-separators",
-                config.word_separators or "",
-                "--case-sensitive",
-                "true" if config.case_sensitive else "false",
-                "--auto-paste",
-                "true" if config.auto_paste else "false",
-                "--prompt-placeholder-text",
-                config.prompt_placeholder_text,
-                "--highlight-colour",
-                config.highlight_colour,
-                "--label-colour",
-                config.label_colour,
-                "--prompt-position",
-                config.prompt_position,
-                "--prompt-indicator",
-                config.prompt_indicator,
-                "--prompt-colour",
-                config.prompt_colour,
-                "--debug-enabled",
-                "true" if config.debug_enabled else "false",
-                "--debug-log-file",
-                DebugLogger.get_instance().log_file if config.debug_enabled else "",
-            ]
-
-            # Launch in a new window
-            with contextlib.suppress(subprocess.SubprocessError):
-                subprocess.Popen(
-                    ["tmux", "new-window", "-n", "flash-copy"] + interactive_cmd,
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                )
-
-            sys.exit(0)
 
         # Initialise search interface with config options
         search = SearchInterface(

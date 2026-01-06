@@ -485,7 +485,6 @@ def main():
     parser.add_argument(
         "--pane-content-file", default="", help="Path to file containing pane content"
     )
-    parser.add_argument("--ui-mode", default="popup", help="UI mode: popup, window")
     parser.add_argument(
         "--reverse-search", default="True", help="Enable reverse search (bottom to top)"
     )
@@ -531,7 +530,6 @@ def main():
 
         # Reconstruct FlashCopyConfig from command line arguments
         config = FlashCopyConfig(
-            ui_mode=args.ui_mode,
             auto_paste=args.auto_paste.lower() in ("true", "1", "yes", "on"),
             reverse_search=args.reverse_search.lower() in ("true", "1", "yes", "on"),
             case_sensitive=args.case_sensitive.lower() in ("true", "1", "yes", "on"),
@@ -549,31 +547,13 @@ def main():
         if config.debug_enabled and args.debug_log_file:
             logger = DebugLogger.get_instance(enabled=True, log_file=args.debug_log_file)
             logger.log_section("Interactive UI Session")
-            logger.log(f"UI mode: {config.ui_mode}")
             logger.log(f"Pane dimensions: {dimensions}")
 
         # Run interactive UI
         ui = InteractiveUI(args.pane_id, args.temp_dir, pane_content, dimensions, config)
-        result = ui.run()
+        ui.run()
 
-        # In window mode, we must handle clipboard/paste ourselves (parent has exited)
-        # In popup mode, the parent process handles it
-        if result and config.ui_mode == "window":
-            logger = DebugLogger.get_instance() if config.debug_enabled else None
-            ui.clipboard.copy_and_paste(
-                result, pane_id=args.pane_id, auto_paste=config.auto_paste, logger=logger
-            )
-
-        # Clean up temp directory in window mode (parent has already exited)
-        if config.ui_mode == "window":
-            try:
-                import shutil
-
-                shutil.rmtree(args.temp_dir, ignore_errors=True)
-            except Exception:
-                pass  # Ignore cleanup errors
-
-        # Exit explicitly to close the popup/window
+        # Exit explicitly to close the popup
         sys.exit(0)
 
     except Exception as e:

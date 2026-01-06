@@ -14,7 +14,6 @@ from typing import Optional
 class FlashCopyConfig:
     """Configuration for tmux-flash-copy plugin."""
 
-    ui_mode: str = "popup"
     auto_paste: bool = False
     reverse_search: bool = True
     case_sensitive: bool = False
@@ -226,9 +225,6 @@ class ConfigLoader:
             FlashCopyConfig dataclass with all flash-copy configuration options
         """
         return FlashCopyConfig(
-            ui_mode=ConfigLoader.get_choice(
-                "@flash-copy-ui-mode", choices=["popup", "window"], default="popup"
-            ),
             auto_paste=ConfigLoader.get_bool("@flash-copy-auto-paste", default=False),
             reverse_search=ConfigLoader.get_bool("@flash-copy-reverse-search", default=True),
             case_sensitive=ConfigLoader.get_bool("@flash-copy-case-sensitive", default=False),

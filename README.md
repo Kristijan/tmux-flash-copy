@@ -84,7 +84,6 @@ The following configuration options are supported. Default values are listed, wi
 | Option                                                                 | Description                                                |
 | ---------------------------------------------------------------------- | ---------------------------------------------------------- |
 | [`@flash-copy-bind-key`](#flash-copy-bind-key-default-s-f)             | Key binding to activate tmux-flash-copy                    |
-| [`@flash-copy-ui-mode`](#flash-copy-ui-mode-default-popup)             | Configures which ui-mode to use                            |
 | [`@flash-copy-word-separators`](#flash-copy-word-separators)           | Characters that define word boundaries                     |
 | [`@flash-copy-auto-paste`](#flash-copy-auto-paste-default-off)         | Controls whether the selected text is automatically pasted |
 | [`@flash-copy-case-sensitive`](#flash-copy-case-sensitive-default-off) | Case-sensitive searching                                   |
@@ -121,18 +120,6 @@ set -g @flash-copy-bind-key "C-f"
 
 # Or use Alt+F
 set -g @flash-copy-bind-key "M-f"
-```
-
-#### `@flash-copy-ui-mode` (default: `popup`)
-
-Controls how the interactive search interface is displayed.
-
-- `popup`: Renders a borderless tmux popup as an overlay to the calling pane (default behaviour)
-- `window`: Creates a new temporary tmux window
-
-```bash
-# Use window mode (fullscreen search in a new window)
-set -g @flash-copy-ui-mode "window"
 ```
 
 #### `@flash-copy-word-separators`
@@ -330,7 +317,7 @@ For information on setting up a development environment, running tests, and code
 ## Future enhancements
 
 - [ ] I'm manually parsing the output of `tmux` commands using a subprocess. This should ideally be using something like [libtmux](https://github.com/tmux-python/libtmux). I might consider switching to this in a major revision update, as I'm likely leaving increased performance on the table.
-- [ ] Initially I tried getting this to work using the terminal and tmux's alternate screen functionality, but could come to a solution that didn't involve using `send-keys` to enable alternate screen. Using an alternate screen could do away with other ui-modes, and not having to worry about popup placement, etc...
+- [ ] Initially I tried getting this to work using the terminal and tmux's alternate screen functionality, but could come to a solution that didn't involve using `send-keys` to enable alternate screen. Using an alternate screen could potentially simplify the popup placement logic.
 
 ## Contributing
 
