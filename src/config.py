@@ -25,7 +25,6 @@ class FlashCopyConfig:
     prompt_position: str = "bottom"
     prompt_indicator: str = ">"
     prompt_colour: str = "\033[1m"
-    prompt_separator_colour: str = "\033[38;5;242m"
     debug_enabled: bool = False
 
 
@@ -246,8 +245,5 @@ class ConfigLoader:
             ),
             prompt_indicator=ConfigLoader.get_string("@flash-copy-prompt-indicator", default=">"),
             prompt_colour=ConfigLoader.get_string("@flash-copy-prompt-colour", default="\033[1m"),
-            prompt_separator_colour=ConfigLoader.get_string(
-                "@flash-copy-prompt-separator-colour", default="\033[38;5;242m"
-            ),
             debug_enabled=ConfigLoader.get_bool("@flash-copy-debug", default=False),
         )

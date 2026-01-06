@@ -93,7 +93,6 @@ def main():
                     "highlight_colour": repr(config.highlight_colour),
                     "label_colour": repr(config.label_colour),
                     "prompt_colour": repr(config.prompt_colour),
-                    "prompt_separator_colour": repr(config.prompt_separator_colour),
                     "debug_enabled": config.debug_enabled,
                 }
             )
@@ -190,8 +189,6 @@ def main():
                 config.prompt_indicator,
                 "--prompt-colour",
                 config.prompt_colour,
-                "--prompt-separator-colour",
-                config.prompt_separator_colour,
                 "--debug-enabled",
                 "true" if config.debug_enabled else "false",
                 "--debug-log-file",

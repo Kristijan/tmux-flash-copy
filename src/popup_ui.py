@@ -161,8 +161,6 @@ class PopupUI:
             self.config.prompt_indicator,
             "--prompt-colour",
             self.config.prompt_colour,
-            "--prompt-separator-colour",
-            self.config.prompt_separator_colour,
             "--debug-enabled",
             "true" if self.config.debug_enabled else "false",
             "--debug-log-file",

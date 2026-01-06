@@ -116,7 +116,6 @@ The debug log captures information about each tmux-flash-copy session:
 [2026-01-05T10:30:45.126] prompt_position: bottom
 [2026-01-05T10:30:45.126] prompt_indicator: >
 [2026-01-05T10:30:45.126] prompt_colour: \033[1m
-[2026-01-05T10:30:45.126] prompt_separator_colour: \033[38;5;242m
 ```
 
 ### 3. Tmux Environment

@@ -204,19 +204,6 @@ class InteractiveUI:
 
         return base_output
 
-    def _get_separator_line(self, term_width: int) -> str:
-        """
-        Build the separator line.
-
-        Args:
-            term_width: Terminal width in characters
-
-        Returns:
-            The formatted separator line
-        """
-        separator = "─" * term_width
-        return f"{self.config.prompt_separator_colour}{separator}{AnsiStyles.RESET}"
-
     def _display_line_with_matches(self, display_line: str, line_idx: int) -> str:
         """
         Process and format a line that contains matches.
@@ -282,27 +269,39 @@ class InteractiveUI:
             available_height: Maximum number of lines to display
         """
         content_lines_printed = 0
+        total_lines = min(len(lines), available_height)
+
         for line_idx, (line, _line_plain) in enumerate(zip(lines, lines_plain)):
             # Stop if we've filled available height
             if content_lines_printed >= available_height:
                 break
 
             matches_on_line = self.search_interface.get_matches_at_line(line_idx)
+            is_last_line = content_lines_printed == total_lines - 1
 
             if not matches_on_line:
                 # Dim the line if there are search results but none on this line
-                if self.search_query:
-                    # Apply dimming that works with coloured content
-                    print(self._dim_coloured_line(line))
+                output = self._dim_coloured_line(line) if self.search_query else line
+
+                # Skip newline on last line to prevent blank line before search bar
+                if is_last_line:
+                    sys.stdout.write(output)
+                    sys.stdout.flush()  # Flush immediately after last line
                 else:
-                    print(line)
+                    print(output)
                 content_lines_printed += 1
                 continue
 
             # For lines with matches, highlight the matched text and add labels
             dimmed_line = self._dim_coloured_line(line) if self.search_query else line
             display_line = self._display_line_with_matches(dimmed_line, line_idx)
-            print(display_line)
+
+            # Skip newline on last line to prevent blank line before search bar
+            if is_last_line:
+                sys.stdout.write(display_line)
+                sys.stdout.flush()  # Flush immediately after last line
+            else:
+                print(display_line)
             content_lines_printed += 1
 
     def _display_content(self):
@@ -313,16 +312,21 @@ class InteractiveUI:
         lines = self.pane_content.split("\n")
         lines_plain = self.pane_content_plain.split("\n")
 
+        # Get popup dimensions first
         try:
             popup_height = shutil.get_terminal_size().lines
-            term_width = shutil.get_terminal_size().columns
         except OSError:
             popup_height = 40
-            term_width = 80
 
         # Calculate available height for content
-        # Account for separator line and search bar (2 lines) plus margins
-        available_height = popup_height - 3  # -1 for search, -1 for separator, -1 for safety
+        # Reserve 1 line at bottom for search bar
+        available_height = popup_height - 1
+
+        # Trim lines array to exactly available_height
+        # This ensures we display exactly the right number of lines
+        if len(lines) > available_height:
+            lines = lines[:available_height]
+            lines_plain = lines_plain[:available_height]
 
         # If search bar is at the top, display it first
         if self.config.prompt_position == "top":
@@ -330,26 +334,20 @@ class InteractiveUI:
             sys.stdout.write(search_output)
             sys.stdout.write("\n")
 
-            # Display separator line
-            print(self._get_separator_line(term_width))
+            # Set scrolling region to protect only the prompt (line 1)
+            # Line 1 = prompt, Lines 2+ = scrollable content
+            sys.stdout.write(f"\033[2;{popup_height}r")
+            # Position cursor at start of scrollable region (line 2, column 1)
+            sys.stdout.write("\033[2;1H")
 
-            # Set scrolling region to protect the prompt (lines 1-2) from scrolling
-            # ANSI escape: \033[{top};{bottom}r sets scrolling region
-            # Line 1 = prompt, Line 2 = separator, Lines 3+ = scrollable content
-            sys.stdout.write(f"\033[3;{popup_height}r")
-
-            # Position cursor at start of scrollable region (line 3, column 1)
-            sys.stdout.write("\033[3;1H")
             sys.stdout.flush()
 
         # If search bar is at the bottom, set up scrolling region first
         if self.config.prompt_position == "bottom":
-            # Set scrolling region to protect the bottom 2 lines (separator + search bar)
-            # ANSI escape: \033[{top};{bottom}r sets scrolling region
-            # Lines 1 to (height - 2) are scrollable, last 2 lines are protected
-            scrollable_bottom = popup_height - 2
-            sys.stdout.write(f"\033[1;{scrollable_bottom}r")
+            # Protect only bottom line (search bar)
+            scrollable_bottom = popup_height - 1
 
+            sys.stdout.write(f"\033[1;{scrollable_bottom}r")
             # Position cursor at start of scrollable region (line 1, column 1)
             sys.stdout.write("\033[1;1H")
             sys.stdout.flush()
@@ -373,16 +371,13 @@ class InteractiveUI:
             # Flush any pending output first
             sys.stdout.flush()
 
-            # Build the complete bottom output
-            separator = self._get_separator_line(term_width)
             search_output = self._build_search_bar_output()
 
-            # Position cursor at the separator line (second-to-last line)
-            separator_line = popup_height - 1
-            sys.stdout.write(f"\033[{separator_line};1H")
-
-            # Write separator and search bar
-            sys.stdout.write(f"{separator}\n{search_output}")
+            # Position search bar at last line
+            search_bar_line = popup_height
+            sys.stdout.write(f"\033[{search_bar_line};1H")
+            # Write search bar
+            sys.stdout.write(search_output)
 
             # Position cursor after the prompt and search query (on the left side)
             # Calculate the visible cursor position (ignore ANSI codes and right-aligned debug text)
@@ -509,11 +504,6 @@ def main():
     )
     parser.add_argument("--prompt-indicator", default=">", help="Prompt character/string")
     parser.add_argument("--prompt-colour", default="\033[1m", help="ANSI colour for the prompt")
-    parser.add_argument(
-        "--prompt-separator-colour",
-        default="\033[38;5;242m",
-        help="ANSI colour for the prompt separator line",
-    )
     parser.add_argument("--debug-enabled", default="false", help="Enable debug logging")
     parser.add_argument("--debug-log-file", default="", help="Path to debug log file")
 
@@ -552,7 +542,6 @@ def main():
             prompt_position=args.prompt_position,
             prompt_indicator=args.prompt_indicator,
             prompt_colour=args.prompt_colour,
-            prompt_separator_colour=args.prompt_separator_colour,
             debug_enabled=args.debug_enabled.lower() in ("true", "1", "yes", "on"),
         )
 

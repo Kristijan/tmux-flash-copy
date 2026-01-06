@@ -99,7 +99,6 @@ The following configuration options are supported. Default values are listed, wi
 | [`@flash-copy-prompt-indicator`](#flash-copy-prompt-indicator-default-)                                     | Customises the prompt indicator                            |
 | [`@flash-copy-prompt-colour`](#flash-copy-prompt-colour-default-0331m---bold)                               | Customises the prompt indicator colour                     |
 | [`@flash-copy-prompt-placeholder-text`](#flash-copy-prompt-placeholder-text-default-search)                 | Customises prompt placeholder text                         |
-| [`@flash-copy-prompt-separator-colour`](#flash-copy-prompt-separator-colour-default-033385242m---dark-grey) | Customises the prompt separator line colour                |
 
 #### Matched text and labels
 
@@ -258,18 +257,6 @@ set -g @flash-copy-prompt-placeholder-text "Type to search..."
 set -g @flash-copy-prompt-placeholder-text ""
 ```
 
-#### `@flash-copy-prompt-separator-colour` (default: `\033[38;5;242m` - dark grey)
-
-Customises the ANSI colour code applied to the separator line that divides the prompt from the pane content.
-
-- Default: `\033[38;5;242m` (dark grey)
-- Accepts any valid ANSI colour code (see [ANSI colour codes](#ansi-colour-codes) section below)
-
-```bash
-# Use bold cyan for the prompt separator
-set -g @flash-copy-prompt-separator-colour "\033[1;36m"
-```
-
 #### `@flash-copy-highlight-colour` (default: `\033[1;33m` - bold yellow)
 
 Customises the ANSI colour code used to highlight the matched portion of text in search results.
@@ -321,6 +308,16 @@ Common ANSI colour codes.
 ## Clipboard Implementation
 
 For information on clipboard methods, troubleshooting, and platform-specific recommendations, see [CLIPBOARD.md](CLIPBOARD.md).
+
+## Demonstration
+
+The following configuration is used in the demonstration GIF.
+
+```bash
+set -g @plugin 'kristijan/tmux-flash-copy'
+set -g @flash-copy-prompt-indicator "❯"
+set -g @flash-copy-prompt-colour "\033[38;2;203;166;247m"
+```
 
 ## Debugging
 

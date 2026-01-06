@@ -22,7 +22,6 @@ class TestFlashCopyConfig:
         assert config.prompt_position == "bottom"
         assert config.prompt_indicator == ">"
         assert config.prompt_colour == "\033[1m"
-        assert config.prompt_separator_colour == "\033[38;5;242m"
         assert config.debug_enabled is False
 
     def test_custom_values(self):
@@ -39,7 +38,6 @@ class TestFlashCopyConfig:
             prompt_position="top",
             prompt_indicator=">>",
             prompt_colour="\033[1;36m",
-            prompt_separator_colour="\033[38;5;100m",
             debug_enabled=True,
         )
         assert config.ui_mode == "window"
@@ -53,7 +51,6 @@ class TestFlashCopyConfig:
         assert config.prompt_position == "top"
         assert config.prompt_indicator == ">>"
         assert config.prompt_colour == "\033[1;36m"
-        assert config.prompt_separator_colour == "\033[38;5;100m"
         assert config.debug_enabled is True
 
 
@@ -332,7 +329,6 @@ class TestConfigLoader:
             "\033[1;32m",
             ">",
             "\033[1m",
-            "\033[38;5;242m",
         ]
 
         config = ConfigLoader.load_all_flash_copy_config()
@@ -349,5 +345,4 @@ class TestConfigLoader:
         assert config.prompt_position == "bottom"
         assert config.prompt_indicator == ">"
         assert config.prompt_colour == "\033[1m"
-        assert config.prompt_separator_colour == "\033[38;5;242m"
         assert config.debug_enabled is False
