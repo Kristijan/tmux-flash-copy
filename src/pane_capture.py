@@ -26,7 +26,7 @@ class PaneCapture:
         """
         try:
             result = subprocess.run(
-                ["tmux", "capture-pane", "-p", "-e", "-t", self.pane_id],
+                ["tmux", "capture-pane", "-p", "-e", "-J", "-t", self.pane_id],
                 capture_output=True,
                 text=True,
                 check=True,

@@ -28,7 +28,7 @@ class TestPaneCapture:
 
         assert result == "Line 1\nLine 2\nLine 3\n"
         mock_run.assert_called_once_with(
-            ["tmux", "capture-pane", "-p", "-e", "-t", "%0"],
+            ["tmux", "capture-pane", "-p", "-e", "-J", "-t", "%0"],
             capture_output=True,
             text=True,
             check=True,

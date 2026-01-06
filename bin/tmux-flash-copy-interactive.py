@@ -251,8 +251,24 @@ class InteractiveUI:
             plain_matched_part = match.text[match_start_in_word:match_end_in_word]
             after_word = display_line[coloured_word_end:]
 
+            # Calculate how many characters to skip after the label to maintain width
+            # Labels are single characters, so skip 1 character from the remaining text
+            label_length = len(match.label)
+            remaining_after_match = display_line[coloured_match_end:coloured_word_end]
+
+            # Map to find position after skipping label_length characters in the plain text
+            remaining_plain = match.text[match_end_in_word:]
+            chars_to_skip = min(label_length, len(remaining_plain))
+
+            # Find the position in the coloured string after skipping chars_to_skip
+            if chars_to_skip > 0:
+                skip_pos = AnsiUtils.map_position_to_coloured(remaining_after_match, chars_to_skip)
+                remaining_after_label = remaining_after_match[skip_pos:]
+            else:
+                remaining_after_label = remaining_after_match
+
             # Build replacement with highlight and label colours
-            replacement = f"{before_match}{AnsiStyles.RESET}{self.config.highlight_colour}{plain_matched_part}{AnsiStyles.RESET}{self.config.label_colour}{match.label}{AnsiStyles.RESET}{AnsiStyles.DIM}{display_line[coloured_match_end:coloured_word_end]}"
+            replacement = f"{before_match}{AnsiStyles.RESET}{self.config.highlight_colour}{plain_matched_part}{AnsiStyles.RESET}{self.config.label_colour}{match.label}{AnsiStyles.RESET}{AnsiStyles.DIM}{remaining_after_label}"
 
             # Replace in display line
             display_line = display_line[:coloured_word_start] + replacement + after_word
@@ -309,8 +325,9 @@ class InteractiveUI:
         self._clear_screen()
 
         # Create a version of the content with labels overlayed
-        lines = self.pane_content.split("\n")
-        lines_plain = self.pane_content_plain.split("\n")
+        # Strip trailing newline to avoid empty line at end (tmux capture-pane adds one)
+        lines = self.pane_content.rstrip("\n").split("\n")
+        lines_plain = self.pane_content_plain.rstrip("\n").split("\n")
 
         # Get popup dimensions first
         try:
@@ -319,8 +336,14 @@ class InteractiveUI:
             popup_height = 40
 
         # Calculate available height for content
-        # Reserve 1 line at bottom for search bar
+        # Reserve 1 line at bottom for search bar, and exclude the last captured line
+        # (which is the user's shell prompt that we want to replace with our search bar)
         available_height = popup_height - 1
+
+        # Remove the last line (user's prompt) so search bar replaces it
+        if len(lines) > 0:
+            lines = lines[:-1]
+            lines_plain = lines_plain[:-1]
 
         # Trim lines array to exactly available_height
         # This ensures we display exactly the right number of lines
