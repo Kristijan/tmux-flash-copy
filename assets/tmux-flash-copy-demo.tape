@@ -33,7 +33,7 @@ Type "bat -pp tmux-flash-copy.tmux" Enter
 Sleep 500ms
 
 # Commentary
-Type `"I'll now search for the word 'option_override' in this output using tmux-flash-copy"`
+Type `"I'll now search for the word 'option_override' in the output using tmux-flash-copy"`
 Sleep 2s
 Ctrl+u
 

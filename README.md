@@ -368,6 +368,12 @@ set -g @flash-copy-prompt-indicator "❯"
 set -g @flash-copy-prompt-colour "\033[38;2;203;166;247m"
 ```
 
+### Terminal setup
+
+- Font is [MonaspiceAr Nerd Font Mono](https://github.com/githubnext/monaspace)
+- Shell prompt is [starship](https://starship.rs)
+- Catppuccin Mocha theme is used for both [tmux](https://github.com/catppuccin/tmux) and [bat](https://github.com/catppuccin/bat).
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit issues or pull requests.

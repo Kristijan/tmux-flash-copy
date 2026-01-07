@@ -390,7 +390,7 @@ wheels = [
 
 [[package]]
 name = "tmux-flash-copy"
-version = "0.1.0"
+version = "1.2.2"
 source = { editable = "." }
 
 [package.optional-dependencies]

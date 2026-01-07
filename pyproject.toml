@@ -1,6 +1,6 @@
 [project]
 name = "tmux-flash-copy"
-version = "0.1.0"
+version = "1.2.2"
 description = "A tmux plugin for searching and copying visible words to clipboard"
 readme = "README.md"
 requires-python = ">=3.9"
