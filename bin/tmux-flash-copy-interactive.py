@@ -61,6 +61,7 @@ class InteractiveUI:
             reverse_search=config.reverse_search,
             word_separators=config.word_separators,
             case_sensitive=config.case_sensitive,
+            label_characters=config.label_characters,
         )
         self.clipboard = Clipboard()
         self.search_query = ""
@@ -605,6 +606,11 @@ def main():
     parser.add_argument(
         "--auto-paste", default="true", help="Enable auto-paste modifier functionality"
     )
+    parser.add_argument(
+        "--label-characters",
+        default="",
+        help="Custom label characters to use for match labels (overrides default)",
+    )
 
     args = parser.parse_args()
 
@@ -641,6 +647,7 @@ def main():
             prompt_colour=args.prompt_colour,
             debug_enabled=args.debug_enabled.lower() in ("true", "1", "yes", "on"),
             auto_paste_enable=args.auto_paste.lower() in ("true", "1", "yes", "on"),
+            label_characters=args.label_characters if args.label_characters else None,
         )
 
         # Initialize debug logger if enabled

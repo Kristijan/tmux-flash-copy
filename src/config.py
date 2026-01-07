@@ -25,6 +25,7 @@ class FlashCopyConfig:
     prompt_colour: str = "\033[1m"
     debug_enabled: bool = False
     auto_paste_enable: bool = True
+    label_characters: Optional[str] = None
 
 
 class ConfigLoader:
@@ -242,4 +243,7 @@ class ConfigLoader:
             prompt_colour=ConfigLoader.get_string("@flash-copy-prompt-colour", default="\033[1m"),
             debug_enabled=ConfigLoader.get_bool("@flash-copy-debug", default=False),
             auto_paste_enable=ConfigLoader.get_bool("@flash-copy-auto-paste", default=True),
+            label_characters=(
+                ConfigLoader.get_string("@flash-copy-label-characters", default="") or None
+            ),
         )

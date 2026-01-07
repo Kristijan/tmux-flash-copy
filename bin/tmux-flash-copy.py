@@ -142,6 +142,7 @@ def main():
             reverse_search=config.reverse_search,
             word_separators=config.word_separators,
             case_sensitive=config.case_sensitive,
+            label_characters=config.label_characters,
         )
 
         # Initialise clipboard helper

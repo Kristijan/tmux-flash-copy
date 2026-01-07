@@ -324,6 +324,7 @@ class TestConfigLoader:
             "\033[1;32m",
             ">",
             "\033[1m",
+            "",
         ]
 
         config = ConfigLoader.load_all_flash_copy_config()
@@ -358,6 +359,7 @@ class TestConfigLoader:
             "\033[1;32m",
             ">",
             "\033[1m",
+            "",
         ]
 
         config = ConfigLoader.load_all_flash_copy_config()

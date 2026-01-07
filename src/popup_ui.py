@@ -163,6 +163,8 @@ class PopupUI:
             "true" if self.config.debug_enabled else "false",
             "--debug-log-file",
             DebugLogger.get_instance().log_file if self.config.debug_enabled else "",
+            "--label-characters",
+            self.config.label_characters or "",
             "--auto-paste",
             "true" if self.config.auto_paste_enable else "false",
         ]

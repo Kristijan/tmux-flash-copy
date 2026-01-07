@@ -45,6 +45,7 @@ class SearchInterface:
         reverse_search: bool = True,
         word_separators: Optional[str] = None,
         case_sensitive: bool = False,
+        label_characters: Optional[str] = None,
     ):
         """
         Initialise the search interface.
@@ -64,6 +65,8 @@ class SearchInterface:
         self.reverse_search = reverse_search
         self.word_separators = word_separators
         self.case_sensitive = case_sensitive
+        # Label characters can be customised per-instance; fall back to class default
+        self.label_characters = label_characters if label_characters else self.DEFAULT_LABELS
         self._build_word_index()
 
     @classmethod
@@ -242,7 +245,7 @@ class SearchInterface:
 
             # Find available labels for this match
             available_labels = []
-            for c in self.DEFAULT_LABELS:
+            for c in self.label_characters:
                 label_lower = c.lower()
                 # Skip if already used (check actual character to allow both a and A)
                 if c in used_labels:

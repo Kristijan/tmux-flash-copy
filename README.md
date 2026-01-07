@@ -123,14 +123,14 @@ The following configuration options are supported. Default values are listed, wi
 
 #### General options
 
-| Option                                                                      | Description                                  |
-| --------------------------------------------------------------------------- | -------------------------------------------- |
-| [`@flash-copy-bind-key`](#flash-copy-bind-key-default-s-f)                  | Key binding to activate tmux-flash-copy      |
-| [`@flash-copy-word-separators`](#flash-copy-word-separators)                | Characters that define word boundaries       |
-| [`@flash-copy-case-sensitive`](#flash-copy-case-sensitive-default-off)      | Case-sensitive searching                     |
-| [`@flash-copy-reverse-search`](#flash-copy-reverse-search-default-on)       | Direction of label assignment when searching |
-| [`@flash-copy-auto-paste`](#flash-copy-auto-paste-default-on)                 | Enable auto-paste modifier functionality     |
-| [`@flash-copy-debug`](#debugging)                                           | Enable debug logging                         |
+| Option                                                                 | Description                                  |
+| ---------------------------------------------------------------------- | -------------------------------------------- |
+| [`@flash-copy-bind-key`](#flash-copy-bind-key-default-s-f)             | Key binding to activate tmux-flash-copy      |
+| [`@flash-copy-word-separators`](#flash-copy-word-separators)           | Characters that define word boundaries       |
+| [`@flash-copy-case-sensitive`](#flash-copy-case-sensitive-default-off) | Case-sensitive searching                     |
+| [`@flash-copy-reverse-search`](#flash-copy-reverse-search-default-on)  | Direction of label assignment when searching |
+| [`@flash-copy-auto-paste`](#flash-copy-auto-paste-default-on)          | Enable auto-paste modifier functionality     |
+| [`@flash-copy-debug`](#debugging)                                      | Enable debug logging                         |
 
 #### Prompt
 
@@ -143,10 +143,11 @@ The following configuration options are supported. Default values are listed, wi
 
 #### Matched text and labels
 
-| Option                                                                                       | Description                                                                           |
-| -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
-| [`@flash-copy-highlight-colour`](#flash-copy-highlight-colour-default-033133m---bold-yellow) | Customises the colour used to highlight the matched portion of text in search results |
-| [`@flash-copy-label-colour`](#flash-copy-label-colour-default-033132m---bold-green)          | Customises the colour used for match labels                                           |
+| Option                                                                                                                      | Description                                                                           |
+| --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| [`@flash-copy-label-characters`](#flash-copy-label-characters-default-asdfghjklqwertyuiopzxcvbnmasdfghjklqwertyuiopzxcvbnm) | Customise the characters that can be used as labels                                   |
+| [`@flash-copy-highlight-colour`](#flash-copy-highlight-colour-default-033133m---bold-yellow)                                | Customises the colour used to highlight the matched portion of text in search results |
+| [`@flash-copy-label-colour`](#flash-copy-label-colour-default-033132m---bold-green)                                         | Customises the colour used for match labels                                           |
 
 ___
 
@@ -286,6 +287,22 @@ set -g @flash-copy-prompt-placeholder-text "Type to search..."
 set -g @flash-copy-prompt-placeholder-text ""
 ```
 
+#### `@flash-copy-label-characters` (default: `asdfghjklqwertyuiopzxcvbnmASDFGHJKLQWERTYUIOPZXCVBNM`)
+
+Customises the ordered list of characters used as match labels. Provide a string of characters in the order you want them to be assigned. If left unset the plugin uses the default label set inspired by [flash.nvim](https://github.com/folke/flash.nvim).
+
+Labels are guaranteed not to exist as a continuation of the search pattern.
+
+Examples:
+
+```bash
+# Use only lower-case letters as labels
+set -g @flash-copy-label-characters "asdfghjklqwertyuiopzxcvbnm"
+
+# Custom order: prioritise hjkl then asdf
+set -g @flash-copy-label-characters "hjklasdf..."
+```
+
 #### `@flash-copy-highlight-colour` (default: `\033[1;33m` - bold yellow)
 
 Customises the ANSI colour code used to highlight the matched portion of text in search results.
@@ -309,16 +326,6 @@ Customises the ANSI colour code used for match labels (the keyboard shortcut ind
 # Use bold cyan for labels
 set -g @flash-copy-label-colour "\033[1;36m"
 ```
-
-### Customising Label Characters
-
-Labels are guaranteed not to exist as a continuation of the search pattern. Edit `src/search_interface.py` and modify the `DEFAULT_LABELS` string in the `SearchInterface` class.
-
-```python
-DEFAULT_LABELS = "asdfghjklqwertyuiopzxcvbnmASDFGHJKLQWERTYUIOPZXCVBNM"
-```
-
-The above order are the defaults from [flash.nvim](https://github.com/folke/flash.nvim), but you can arrange them in the order you prefer.
 
 ## ANSI colour codes
 
