@@ -11,7 +11,6 @@ class TestFlashCopyConfig:
     def test_default_values(self):
         """Test default configuration values."""
         config = FlashCopyConfig()
-        assert config.auto_paste is False
         assert config.reverse_search is True
         assert config.case_sensitive is False
         assert config.word_separators is None
@@ -22,11 +21,11 @@ class TestFlashCopyConfig:
         assert config.prompt_indicator == ">"
         assert config.prompt_colour == "\033[1m"
         assert config.debug_enabled is False
+        assert config.auto_paste_enable is True
 
     def test_custom_values(self):
         """Test configuration with custom values."""
         config = FlashCopyConfig(
-            auto_paste=True,
             reverse_search=False,
             case_sensitive=True,
             word_separators=" -",
@@ -37,8 +36,8 @@ class TestFlashCopyConfig:
             prompt_indicator=">>",
             prompt_colour="\033[1;36m",
             debug_enabled=True,
+            auto_paste_enable=False,
         )
-        assert config.auto_paste is True
         assert config.reverse_search is False
         assert config.case_sensitive is True
         assert config.word_separators == " -"
@@ -49,6 +48,7 @@ class TestFlashCopyConfig:
         assert config.prompt_indicator == ">>"
         assert config.prompt_colour == "\033[1;36m"
         assert config.debug_enabled is True
+        assert config.auto_paste_enable is False
 
 
 class TestConfigLoader:
@@ -316,7 +316,7 @@ class TestConfigLoader:
     def test_load_all_flash_copy_config(self, mock_word_sep, mock_string, mock_bool, mock_choice):
         """Test loading all flash-copy configuration."""
         mock_choice.side_effect = ["bottom"]
-        mock_bool.side_effect = [False, True, False, False]
+        mock_bool.side_effect = [True, False, False, True]  # auto_paste_enable defaults to True
         mock_word_sep.return_value = None
         mock_string.side_effect = [
             "search...",
@@ -329,7 +329,6 @@ class TestConfigLoader:
         config = ConfigLoader.load_all_flash_copy_config()
 
         assert isinstance(config, FlashCopyConfig)
-        assert config.auto_paste is False
         assert config.reverse_search is True
         assert config.case_sensitive is False
         assert config.word_separators is None
@@ -340,3 +339,27 @@ class TestConfigLoader:
         assert config.prompt_indicator == ">"
         assert config.prompt_colour == "\033[1m"
         assert config.debug_enabled is False
+        assert config.auto_paste_enable is True
+
+    @patch("src.config.ConfigLoader.get_choice")
+    @patch("src.config.ConfigLoader.get_bool")
+    @patch("src.config.ConfigLoader.get_string")
+    @patch("src.config.ConfigLoader.get_word_separators")
+    def test_load_all_flash_copy_config_auto_paste_disabled(
+        self, mock_word_sep, mock_string, mock_bool, mock_choice
+    ):
+        """Test loading flash-copy configuration with auto-paste disabled."""
+        mock_choice.side_effect = ["top"]
+        mock_bool.side_effect = [True, True, True, False]  # auto_paste_enable is False
+        mock_word_sep.return_value = " -"
+        mock_string.side_effect = [
+            "search...",
+            "\033[1;33m",
+            "\033[1;32m",
+            ">",
+            "\033[1m",
+        ]
+
+        config = ConfigLoader.load_all_flash_copy_config()
+
+        assert config.auto_paste_enable is False

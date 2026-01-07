@@ -65,6 +65,8 @@ class InteractiveUI:
         self.clipboard = Clipboard()
         self.search_query = ""
         self.current_matches = []
+        self.autopaste_modifier_active = False
+        self.last_logged_modifier = None  # Track last logged modifier state to avoid repetition
         # Initialize debug logger if enabled
         self.debug_logger = (
             DebugLogger.get_instance()
@@ -107,10 +109,10 @@ class InteractiveUI:
 
     def _get_single_char(self) -> str:
         """
-        Read a single character from stdin without waiting for Enter.
+        Read a single character or escape sequence from stdin without waiting for Enter.
 
         Returns:
-            The character read, or empty string on EOF
+            The character or special value read, or empty string on EOF
         """
         try:
             fd = sys.stdin.fileno()
@@ -121,6 +123,9 @@ class InteractiveUI:
                 char = sys.stdin.read(1)
                 if not char:  # EOF
                     return ControlChars.CTRL_C  # Treat EOF as Ctrl+C
+                # Check for escape sequences
+                if char == ControlChars.ESC:
+                    return self._handle_escape_sequence()
                 return char
 
             old_settings = termios.tcgetattr(fd)
@@ -129,12 +134,30 @@ class InteractiveUI:
                 char = sys.stdin.read(1)
                 if not char:  # EOF
                     return ControlChars.CTRL_C  # Treat EOF as Ctrl+C
+                # Check for escape sequences
+                if char == ControlChars.ESC:
+                    return self._handle_escape_sequence()
                 return char
             finally:
                 termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
         except Exception as e:
             print(f"Error reading input: {e}", file=sys.stderr)
             return ControlChars.CTRL_C  # Treat any error as Ctrl+C
+
+    def _handle_escape_sequence(self) -> str:
+        """
+        Handle ESC key press.
+
+        Returns:
+            ControlChars.ESC to cancel, or empty string to ignore
+        """
+        # If autopaste modifier is active, ignore ESC
+        # (prevents accidental cancellation while using modifier)
+        if self.autopaste_modifier_active:
+            if self.debug_logger and self.debug_logger.enabled:
+                self.debug_logger.log("Ignoring ESC while autopaste modifier active")
+            return ""  # Ignore when modifier is active
+        return ControlChars.ESC
 
     def _clear_screen(self):
         """Clear the terminal screen."""
@@ -422,22 +445,56 @@ class InteractiveUI:
             self._display_content()
 
             while True:
-                char = self._get_single_char()
+                try:
+                    char = self._get_single_char()
+                except Exception as e:
+                    # If we fail to read input, log and treat as cancel
+                    if self.debug_logger and self.debug_logger.enabled:
+                        self.debug_logger.log(f"Error reading character: {e}")
+                    self._save_result("", should_paste=False)
+                    return None
+
+                # Ignore empty characters (escape sequences we want to skip)
+                if char == "":
+                    continue
 
                 # Handle control characters
                 if char == ControlChars.CTRL_C:
                     if self.debug_logger and self.debug_logger.enabled:
                         self.debug_logger.log("User cancelled with Ctrl+C")
-                    self._save_result("")  # Write empty file to signal completion
+                    self._save_result(
+                        "", should_paste=False
+                    )  # Write empty file to signal completion
                     return None
                 elif char == ControlChars.ESC:
                     if self.debug_logger and self.debug_logger.enabled:
                         self.debug_logger.log("User cancelled with ESC")
-                    self._save_result("")  # Write empty file to signal completion
+                    self._save_result(
+                        "", should_paste=False
+                    )  # Write empty file to signal completion
                     return None
+                elif char in (";", ":"):
+                    # Semicolon/colon handling depends on auto-paste enabled setting
+                    if self.config.auto_paste_enable:
+                        # Auto-paste enabled: semicolon/colon acts as modifier
+                        self.autopaste_modifier_active = True
+                        # Only log if modifier state changed (avoid repetition when key is held)
+                        if self.last_logged_modifier != char:
+                            if self.debug_logger and self.debug_logger.enabled:
+                                self.debug_logger.log(f"Auto-paste modifier activated ('{char}')")
+                            self.last_logged_modifier = char
+                        continue
+                    else:
+                        # Auto-paste disabled: treat semicolon/colon as regular searchable characters
+                        self.last_logged_modifier = None  # Reset logged state
+                        self._update_search(self.search_query + char)
                 elif char == ControlChars.CTRL_U:  # Clear line
+                    self.autopaste_modifier_active = False
+                    self.last_logged_modifier = None
                     self._update_search("")
                 elif char == ControlChars.CTRL_W:  # Delete word backwards
+                    self.autopaste_modifier_active = False
+                    self.last_logged_modifier = None
                     if self.search_query:
                         # Delete backwards treating delimiters as word boundaries
                         new_query = self.search_query.rstrip()  # Remove trailing whitespace
@@ -454,16 +511,21 @@ class InteractiveUI:
                             new_query = new_query[: i + 1]
                         self._update_search(new_query)
                 elif char == ControlChars.BACKSPACE or char == ControlChars.BACKSPACE_ALT:
+                    self.autopaste_modifier_active = False
+                    self.last_logged_modifier = None
                     if self.search_query:
                         self._update_search(self.search_query[:-1])
                 elif char == ControlChars.ENTER or char == ControlChars.ENTER_ALT:
                     if self.current_matches:
                         # Select the first match
+                        # Use autopaste modifier if active
+                        should_paste = self.autopaste_modifier_active
                         if self.debug_logger and self.debug_logger.enabled:
+                            paste_msg = " with auto-paste" if should_paste else ""
                             self.debug_logger.log(
-                                f"User pressed Enter - selected first match: '{self.current_matches[0].text}'"
+                                f"User pressed Enter{paste_msg} - selected first match: '{self.current_matches[0].text}'"
                             )
-                        self._save_result(self.current_matches[0].text)
+                        self._save_result(self.current_matches[0].text, should_paste=should_paste)
                         return self.current_matches[0].text
                 elif char.isprintable():
                     # Check if this character is a label for current matches
@@ -473,19 +535,22 @@ class InteractiveUI:
                         match = self.search_interface.get_match_by_label(char)
                         if match:
                             # Label pressed - save result and exit
-                            # Parent process handles clipboard/paste
+                            # Use autopaste modifier if active for auto-paste
+                            should_paste = self.autopaste_modifier_active
                             if self.debug_logger and self.debug_logger.enabled:
+                                paste_msg = " with auto-paste" if should_paste else ""
                                 self.debug_logger.log(
-                                    f"User selected label '{char}': '{match.text}'"
+                                    f"User selected label '{char}'{paste_msg}: '{match.text}'"
                                 )
-                            self._save_result(match.text)
+                            self._save_result(match.text, should_paste=should_paste)
                             return match.text
 
                     # Regular character - add to search query
+                    # Don't reset modifier when typing (allows holding modifier while selecting)
                     self._update_search(self.search_query + char)
 
         except KeyboardInterrupt:
-            self._save_result("")  # Write empty file to signal completion
+            self._save_result("", should_paste=False)  # Write empty file to signal completion
             return None
         finally:
             # Reset terminal state (scrolling region)
@@ -493,11 +558,21 @@ class InteractiveUI:
             # Clean up terminal
             self._clear_screen()
 
-    def _save_result(self, text: str):
-        """Save the result to a file for the parent process."""
+    def _save_result(self, text: str, should_paste: bool = False):
+        """Save the result to a file for the parent process.
+
+        Args:
+            text: The selected text to copy
+            should_paste: Whether to auto-paste after copying
+        """
         result_file = os.path.join(self.temp_dir, "result.txt")
         with open(result_file, "w") as f:
             f.write(text)
+
+        # Save paste flag to separate file
+        paste_flag_file = os.path.join(self.temp_dir, "should_paste.txt")
+        with open(paste_flag_file, "w") as f:
+            f.write("true" if should_paste else "false")
 
 
 def main():
@@ -513,7 +588,6 @@ def main():
     )
     parser.add_argument("--word-separators", default="", help="Word separator characters")
     parser.add_argument("--case-sensitive", default="False", help="Enable case-sensitive search")
-    parser.add_argument("--auto-paste", default="False", help="Automatically paste after copying")
     parser.add_argument(
         "--prompt-placeholder-text", default="search...", help="Ghost text for empty prompt input"
     )
@@ -528,6 +602,9 @@ def main():
     parser.add_argument("--prompt-colour", default="\033[1m", help="ANSI colour for the prompt")
     parser.add_argument("--debug-enabled", default="false", help="Enable debug logging")
     parser.add_argument("--debug-log-file", default="", help="Path to debug log file")
+    parser.add_argument(
+        "--auto-paste", default="true", help="Enable auto-paste modifier functionality"
+    )
 
     args = parser.parse_args()
 
@@ -553,7 +630,6 @@ def main():
 
         # Reconstruct FlashCopyConfig from command line arguments
         config = FlashCopyConfig(
-            auto_paste=args.auto_paste.lower() in ("true", "1", "yes", "on"),
             reverse_search=args.reverse_search.lower() in ("true", "1", "yes", "on"),
             case_sensitive=args.case_sensitive.lower() in ("true", "1", "yes", "on"),
             word_separators=args.word_separators if args.word_separators else None,
@@ -564,6 +640,7 @@ def main():
             prompt_indicator=args.prompt_indicator,
             prompt_colour=args.prompt_colour,
             debug_enabled=args.debug_enabled.lower() in ("true", "1", "yes", "on"),
+            auto_paste_enable=args.auto_paste.lower() in ("true", "1", "yes", "on"),
         )
 
         # Initialize debug logger if enabled

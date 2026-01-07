@@ -147,8 +147,6 @@ class PopupUI:
             self.search_interface.word_separators or "",
             "--case-sensitive",
             str(self.config.case_sensitive),
-            "--auto-paste",
-            str(self.config.auto_paste),
             "--prompt-placeholder-text",
             self.config.prompt_placeholder_text,
             "--highlight-colour",
@@ -165,6 +163,8 @@ class PopupUI:
             "true" if self.config.debug_enabled else "false",
             "--debug-log-file",
             DebugLogger.get_instance().log_file if self.config.debug_enabled else "",
+            "--auto-paste",
+            "true" if self.config.auto_paste_enable else "false",
         ]
 
         try:
@@ -178,11 +178,15 @@ class PopupUI:
             result_file = os.path.join(self.temp_dir, "result.txt")
             result_text = self._wait_for_result_file(result_file, timeout=5.0)
 
+            # Read the paste flag
+            paste_flag_file = os.path.join(self.temp_dir, "should_paste.txt")
+            should_paste = self._read_paste_flag(paste_flag_file)
+
             # Empty string means cancelled (ESC/Ctrl+C)
             # None means file was never created (timeout)
             if result_text is not None and result_text != "":
                 # Return tuple of (text, should_paste)
-                return (result_text, self.config.auto_paste)
+                return (result_text, should_paste)
 
             # Return tuple of (None, False) for cancelled or timeout
             return (None, False)
@@ -224,3 +228,22 @@ class PopupUI:
 
         # Timeout reached, file was never found or readable
         return None
+
+    def _read_paste_flag(self, paste_flag_file: str) -> bool:
+        """
+        Read the paste flag from the file written by interactive UI.
+
+        Args:
+            paste_flag_file: Path to the paste flag file
+
+        Returns:
+            True if paste flag is "true", False otherwise
+        """
+        if os.path.exists(paste_flag_file):
+            try:
+                with open(paste_flag_file) as f:
+                    content = f.read().strip().lower()
+                    return content == "true"
+            except OSError:
+                return False
+        return False

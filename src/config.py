@@ -14,7 +14,6 @@ from typing import Optional
 class FlashCopyConfig:
     """Configuration for tmux-flash-copy plugin."""
 
-    auto_paste: bool = False
     reverse_search: bool = True
     case_sensitive: bool = False
     word_separators: Optional[str] = None
@@ -25,6 +24,7 @@ class FlashCopyConfig:
     prompt_indicator: str = ">"
     prompt_colour: str = "\033[1m"
     debug_enabled: bool = False
+    auto_paste_enable: bool = True
 
 
 class ConfigLoader:
@@ -225,7 +225,6 @@ class ConfigLoader:
             FlashCopyConfig dataclass with all flash-copy configuration options
         """
         return FlashCopyConfig(
-            auto_paste=ConfigLoader.get_bool("@flash-copy-auto-paste", default=False),
             reverse_search=ConfigLoader.get_bool("@flash-copy-reverse-search", default=True),
             case_sensitive=ConfigLoader.get_bool("@flash-copy-case-sensitive", default=False),
             word_separators=ConfigLoader.get_word_separators(),
@@ -242,4 +241,5 @@ class ConfigLoader:
             prompt_indicator=ConfigLoader.get_string("@flash-copy-prompt-indicator", default=">"),
             prompt_colour=ConfigLoader.get_string("@flash-copy-prompt-colour", default="\033[1m"),
             debug_enabled=ConfigLoader.get_bool("@flash-copy-debug", default=False),
+            auto_paste_enable=ConfigLoader.get_bool("@flash-copy-auto-paste", default=True),
         )
