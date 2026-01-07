@@ -133,6 +133,35 @@ When OSC52 fails, the plugin falls back to platform-specific clipboard utilities
 - Cannot paste into other applications
 - Does not persist across tmux sessions
 
+## Internal: IPC buffer
+
+### The `__tmux_flash_copy_result__` buffer
+
+The plugin uses a special tmux buffer named `__tmux_flash_copy_result__` for internal communication between the parent process and the interactive popup UI.
+
+**Purpose**: Inter-process communication (IPC)
+
+**How it works**:
+
+- When the user selects text in the popup, the selection is stored in this named buffer
+- The parent process reads from this buffer after the popup closes
+- The buffer is immediately deleted after reading
+- The text is then copied to the system clipboard using one of the methods above
+
+**Key points**:
+
+- This buffer is **separate** from clipboard operations
+- It's used only for passing data from the popup to the parent process
+- It exists only briefly (written → read → deleted)
+- The double underscores (`__`) indicate this is an internal/private buffer
+- Users will never interact with this buffer directly
+
+**Why a tmux buffer for IPC?**
+
+The plugin runs the interactive UI inside a `tmux display-popup`, which creates a pseudo-terminal. Standard output from the popup process cannot be captured by the parent, so we use a tmux buffer as a temporary storage mechanism.
+
+After the text is read from the IPC buffer, it's copied to the system clipboard using the standard clipboard methods described above (OSC52, pbcopy, xclip, etc.).
+
 ## Troubleshooting
 
 ### OSC52 Not Working

@@ -5,35 +5,9 @@ Provides helper functions for running shell commands with uniform error handling
 timeouts, and logging.
 """
 
-import os
-import shutil
 import subprocess
 from dataclasses import dataclass
 from typing import Optional
-
-
-class FileUtils:
-    """Utilities for file and directory operations."""
-
-    @staticmethod
-    def cleanup_dir(dir_path: str) -> bool:
-        """
-        Remove a directory and all its contents.
-
-        Safely removes a directory tree with error handling.
-
-        Args:
-            dir_path: Path to the directory to remove
-
-        Returns:
-            True if cleanup succeeded, False otherwise
-        """
-        try:
-            if os.path.exists(dir_path):
-                shutil.rmtree(dir_path)
-            return True
-        except (OSError, PermissionError):
-            return False
 
 
 class SubprocessUtils:

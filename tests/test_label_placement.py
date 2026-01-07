@@ -29,7 +29,7 @@ def test_partial_match_replaces_next_character():
 
     pane_content = "hello world\n"
     config = FlashCopyConfig()
-    ui = interactive_cls("pane", "/tmp", pane_content, {}, config)
+    ui = interactive_cls("pane", pane_content, {}, config)
 
     # Run search for single character 'h'
     matches = ui.search_interface.search("h")
@@ -59,7 +59,7 @@ def test_whole_word_match_replaces_following_space():
 
     pane_content = "hello world\n"
     config = FlashCopyConfig()
-    ui = interactive_cls("pane", "/tmp", pane_content, {}, config)
+    ui = interactive_cls("pane", pane_content, {}, config)
 
     matches = ui.search_interface.search("hello")
     assert matches, "Expected at least one match"

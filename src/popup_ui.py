@@ -5,10 +5,7 @@ This module creates a tmux popup window that displays the pane content
 with a search interface, labels for matches, and handles user input.
 """
 
-import os
 import subprocess
-import tempfile
-import time
 from pathlib import Path
 from typing import Optional
 
@@ -16,7 +13,7 @@ from src.clipboard import Clipboard
 from src.config import FlashCopyConfig
 from src.debug_logger import DebugLogger
 from src.search_interface import SearchInterface, SearchMatch
-from src.utils import FileUtils, TmuxPaneUtils
+from src.utils import TmuxPaneUtils
 
 
 class PopupUI:
@@ -45,7 +42,6 @@ class PopupUI:
         self.clipboard = clipboard
         self.pane_id = pane_id
         self.config = config
-        self.temp_dir = tempfile.mkdtemp()
         self.search_query = ""
         self.current_matches: list[SearchMatch] = []
 
@@ -57,15 +53,10 @@ class PopupUI:
             Tuple of (text, should_paste) where text is the copied text if selection
             was made (None if cancelled) and should_paste is True if auto-paste is enabled
         """
-        try:
-            # Launch the popup
-            result = self._launch_popup()
+        # Launch the popup
+        result = self._launch_popup()
 
-            return result
-
-        finally:
-            # Cleanup
-            self._cleanup()
+        return result
 
     def _launch_popup(self) -> tuple[Optional[str], bool]:
         """
@@ -75,15 +66,6 @@ class PopupUI:
             Tuple of (text, should_paste) where text is the copied text if selection
             was made (None if cancelled) and should_paste is True if auto-paste is enabled
         """
-        # Save pane content to temp file to avoid re-capturing in interactive script
-        pane_content_file = os.path.join(self.temp_dir, "pane_content.txt")
-        try:
-            with open(pane_content_file, "w") as f:
-                f.write(self.pane_content)
-        except OSError:
-            # If we can't write the file, the interactive script will fall back to capturing
-            pass
-
         # Get pane dimensions for seamless overlay positioning
         pane_dimensions = TmuxPaneUtils.get_pane_dimensions(self.pane_id)
 
@@ -137,10 +119,6 @@ class PopupUI:
             str(interactive_script),
             "--pane-id",
             self.pane_id,
-            "--temp-dir",
-            self.temp_dir,
-            "--pane-content-file",
-            pane_content_file,
             "--reverse-search",
             str(self.search_interface.reverse_search),
             "--word-separators",
@@ -169,83 +147,73 @@ class PopupUI:
             "true" if self.config.auto_paste_enable else "false",
         ]
 
+        logger = DebugLogger.get_instance()
+
         try:
             # Run the popup command - it will close automatically with -E flag when script exits
-            subprocess.run(
+            # Long timeout (5 minutes) to allow users time to search and select text
+            result = subprocess.run(
                 popup_cmd,
                 check=False,
+                timeout=300.0,
             )
 
-            # Read the result from the temp directory with retries
-            result_file = os.path.join(self.temp_dir, "result.txt")
-            result_text = self._wait_for_result_file(result_file, timeout=5.0)
+            if logger.enabled:
+                logger.log(f"Popup closed with exit code: {result.returncode}")
 
-            # Read the paste flag
-            paste_flag_file = os.path.join(self.temp_dir, "should_paste.txt")
-            should_paste = self._read_paste_flag(paste_flag_file)
+            # Read paste flag from exit code: 10 = paste, 0 = copy
+            should_paste = result.returncode == 10
+
+            # Read result from tmux buffer (written by child process)
+            # Using unique buffer name to avoid conflicts
+            try:
+                if logger.enabled:
+                    logger.log("Reading result from tmux buffer...")
+
+                buffer_result = subprocess.run(
+                    ["tmux", "show-buffer", "-b", "__tmux_flash_copy_result__"],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                result_text = buffer_result.stdout.strip() if buffer_result.stdout else None
+
+                if logger.enabled:
+                    if result_text:
+                        logger.log(f"Buffer read successful (length: {len(result_text)})")
+                    else:
+                        logger.log("Buffer read returned empty string")
+
+                # Clean up the buffer after reading
+                subprocess.run(
+                    ["tmux", "delete-buffer", "-b", "__tmux_flash_copy_result__"],
+                    capture_output=True,
+                    check=False,
+                )
+            except subprocess.CalledProcessError as e:
+                # Buffer doesn't exist (user cancelled or error)
+                if logger.enabled:
+                    logger.log(f"Buffer read FAILED: {e}")
+                result_text = None
 
             # Empty string means cancelled (ESC/Ctrl+C)
-            # None means file was never created (timeout)
+            # None means no output or buffer not found
             if result_text is not None and result_text != "":
+                if logger.enabled:
+                    logger.log(f"Returning result to parent: '{result_text[:50]}...' (paste={should_paste})")
                 # Return tuple of (text, should_paste)
                 return (result_text, should_paste)
 
-            # Return tuple of (None, False) for cancelled or timeout
+            # Return tuple of (None, False) for cancelled or no output
+            if logger.enabled:
+                logger.log("No result to return (cancelled or empty)")
             return (None, False)
 
-        except Exception:
+        except subprocess.TimeoutExpired:
+            if logger.enabled:
+                logger.log("Popup timeout expired")
             return (None, False)
-
-    def _cleanup(self):
-        """Clean up temporary files."""
-        FileUtils.cleanup_dir(self.temp_dir)
-
-    def _wait_for_result_file(self, result_file: str, timeout: float = 5.0) -> Optional[str]:
-        """
-        Wait for the result file to be written by the interactive UI.
-
-        Args:
-            result_file: Path to the result file
-            timeout: Maximum time to wait in seconds (default 5.0)
-
-        Returns:
-            The result text if file is found and readable, None otherwise
-        """
-        start_time = time.time()
-        poll_interval = 0.05  # Poll every 50ms
-
-        while time.time() - start_time < timeout:
-            if os.path.exists(result_file):
-                try:
-                    with open(result_file) as f:
-                        result_text = f.read().strip()
-                        return result_text
-                except OSError:
-                    # File may still be being written, try again
-                    time.sleep(poll_interval)
-                    continue
-            else:
-                # File doesn't exist yet, wait a bit and try again
-                time.sleep(poll_interval)
-
-        # Timeout reached, file was never found or readable
-        return None
-
-    def _read_paste_flag(self, paste_flag_file: str) -> bool:
-        """
-        Read the paste flag from the file written by interactive UI.
-
-        Args:
-            paste_flag_file: Path to the paste flag file
-
-        Returns:
-            True if paste flag is "true", False otherwise
-        """
-        if os.path.exists(paste_flag_file):
-            try:
-                with open(paste_flag_file) as f:
-                    content = f.read().strip().lower()
-                    return content == "true"
-            except OSError:
-                return False
-        return False
+        except Exception as e:
+            if logger.enabled:
+                logger.log(f"Exception in _launch_popup: {e}")
+            return (None, False)
