@@ -556,8 +556,10 @@ class InteractiveUI:
                             self.debug_logger.log(
                                 f"User pressed Enter{paste_msg} - selected first match: '{self.current_matches[0].text}'"
                             )
-                        self._save_result(self.current_matches[0].text, should_paste=should_paste)
-                        return self.current_matches[0].text
+                        self._save_result(
+                            self.current_matches[0].copy_text, should_paste=should_paste
+                        )
+                        return self.current_matches[0].copy_text
                 elif char.isprintable():
                     # Check if this character is a label for current matches
                     # But only if we already have a non-empty search query
@@ -573,8 +575,8 @@ class InteractiveUI:
                                 self.debug_logger.log(
                                     f"User selected label '{char}'{paste_msg}: '{match.text}'"
                                 )
-                            self._save_result(match.text, should_paste=should_paste)
-                            return match.text
+                            self._save_result(match.copy_text, should_paste=should_paste)
+                            return match.copy_text
 
                     # Regular character - add to search query
                     # Don't reset modifier when typing (allows holding modifier while selecting)

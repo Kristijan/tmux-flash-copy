@@ -142,9 +142,12 @@ class TestSearchInterface:
 
         # With " -" as separators, underscores are not separators
         # so "foo_bar" is one word
+        # Note: "-bar" has leading dash separator, "foo_bar" has no leading separator (space before it)
         assert len(matches) == 2
-        assert any(m.text == "bar" for m in matches)
+        assert any(m.text == "-bar" for m in matches)  # "bar" with leading dash separator
         assert any(m.text == "foo_bar" for m in matches)
+        # Verify that copy_text strips the separator
+        assert any(m.copy_text == "bar" for m in matches)
 
     def test_search_reverse_order(self):
         """Test search with reverse ordering (bottom to top)."""
@@ -350,6 +353,30 @@ class TestSearchInterface:
         pattern2 = SearchInterface._get_word_pattern(" -")
 
         assert pattern1 is pattern2
+
+    def test_get_word_pattern_escape_starting_caret(self):
+        """Ensure _get_word_pattern handles separators starting with '^'."""
+        # This exercises the escape_for_char_class branch where s.startswith("^")
+        pattern = SearchInterface._get_word_pattern("^")
+
+        assert hasattr(pattern, "findall")
+
+        # With '^' as a separator the pattern should split on '^'
+        text = "a^b^c"
+        parts = pattern.findall(text)
+        # Should find the segments between '^' characters
+        assert parts == ["a", "b", "c"]
+
+    def test_word_separators_only_whitespace(self):
+        """When `word_separators` contains only whitespace, no leading non-ws separators are captured."""
+        content = "hello world"
+        # Only a space character as separator -> non_ws_seps becomes empty -> separator_pattern = None
+        search = SearchInterface(content, word_separators=" ")
+
+        # Words should be parsed normally without any leading separator characters
+        matches = search.search("world")
+        assert len(matches) == 1
+        assert matches[0].text == "world"
 
     def test_label_assignment_exhaustion(self):
         """Test label assignment when running out of available labels."""

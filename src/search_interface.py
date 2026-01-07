@@ -14,8 +14,16 @@ from typing import Optional
 class SearchMatch:
     """Represents a single matched word with its position and label."""
 
-    def __init__(self, text: str, start_pos: int, end_pos: int, line: int, col: int):
-        self.text = text
+    def __init__(
+        self,
+        text: str,
+        start_pos: int,
+        end_pos: int,
+        line: int,
+        col: int,
+        copy_text: Optional[str] = None,
+    ):
+        self.text = text  # Extended text including separators for matching
         self.start_pos = start_pos  # Position in flattened content
         self.end_pos = end_pos
         self.line = line
@@ -23,6 +31,8 @@ class SearchMatch:
         self.label: Optional[str] = None
         self.match_start: int = 0  # Start position of match within the text
         self.match_end: int = 0  # End position of match within the text
+        # The actual word to copy (without leading/trailing separators)
+        self.copy_text: str = copy_text if copy_text is not None else text
 
     def __repr__(self):
         return (
@@ -103,11 +113,39 @@ class SearchInterface:
         return pattern
 
     def _build_word_index(self):
-        """Build an index of all words in the pane content."""
+        """Build an index of all words in the pane content.
+
+        Creates extended matches that include leading separator characters
+        for searching, while preserving the actual word for copying.
+        """
         self.word_index: dict[str, list[SearchMatch]] = defaultdict(list)
 
         # Get cached or compile word pattern
         word_pattern = self._get_word_pattern(self.word_separators)
+
+        # Compile separator pattern if we have custom separators
+        # We want to capture non-whitespace separators only
+        if self.word_separators:
+
+            def escape_for_char_class(s):
+                s = s.replace("\\", "\\\\")
+                s = s.replace("]", "\\]")
+                if s.startswith("^"):
+                    s = "^" + s[1:].replace("^", "\\^")
+                return s
+
+            # Create pattern that matches non-whitespace characters from the separator set
+            # This allows us to capture separators like #, @, {, } but not spaces
+            non_ws_seps = "".join(c for c in self.word_separators if not c.isspace())
+            if non_ws_seps:
+                escaped_non_ws = escape_for_char_class(non_ws_seps)
+                separator_pattern = re.compile(f"[{escaped_non_ws}]+")
+            else:
+                # If all separators are whitespace, don't capture any leading separators
+                separator_pattern = None
+        else:
+            # Default: no leading separators (to maintain backward compatibility)
+            separator_pattern = None
 
         pos = 0
         for line_idx, line in enumerate(self.lines):
@@ -117,15 +155,45 @@ class SearchInterface:
                 word_start = match.start()
                 word_end = match.end()
 
+                # Capture leading non-whitespace separators (look backward from word_start)
+                leading_sep = ""
+                extended_start = word_start
+                if separator_pattern and word_start > 0:
+                    # Look backward to find leading non-whitespace separators
+                    before_text = line[:word_start]
+                    # Find the last separator match before the word
+                    sep_match = None
+                    for match_obj in separator_pattern.finditer(before_text):
+                        sep_match = match_obj  # Keep the last match
+                    if sep_match and sep_match.end() == word_start:
+                        # There are separators immediately before the word
+                        leading_sep = sep_match.group()
+                        extended_start = sep_match.start()
+
+                # Capture trailing non-whitespace separators (look forward from word_end)
+                trailing_sep = ""
+                if separator_pattern and word_end < len(line):
+                    # Look forward to find trailing non-whitespace separators
+                    after_text = line[word_end:]
+                    # Check if there are separators immediately after the word
+                    sep_match = separator_pattern.match(after_text)
+                    if sep_match and sep_match.start() == 0:
+                        # There are separators immediately after the word
+                        trailing_sep = sep_match.group()
+
+                # Create extended text with leading and trailing separators
+                extended_text = leading_sep + word + trailing_sep
+
                 search_match = SearchMatch(
-                    text=word,
-                    start_pos=pos + word_start,
+                    text=extended_text,
+                    start_pos=pos + extended_start,
                     end_pos=pos + word_end,
                     line=line_idx,
-                    col=word_start,
+                    col=extended_start,
+                    copy_text=word,  # The actual word without separators
                 )
-                # Use the word as-is if case-sensitive, or lowercase if case-insensitive
-                index_key = word if self.case_sensitive else word.lower()
+                # Use the extended text as-is if case-sensitive, or lowercase if case-insensitive
+                index_key = extended_text if self.case_sensitive else extended_text.lower()
                 self.word_index[index_key].append(search_match)
 
             pos += len(line) + 1  # +1 for newline
@@ -173,6 +241,7 @@ class SearchInterface:
                             end_pos=match.end_pos,
                             line=match.line,
                             col=match.col,
+                            copy_text=match.copy_text,  # Preserve the copyable word
                         )
                         new_match.match_start = match_pos
                         new_match.match_end = match_pos + len(search_query)
