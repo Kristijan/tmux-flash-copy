@@ -37,6 +37,7 @@ class ControlChars:
     BACKSPACE_ALT = "\b"
     ENTER = "\n"
     ENTER_ALT = "\r"
+    TAB = "\t"
 
 
 class AnsiUtils:

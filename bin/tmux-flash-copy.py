@@ -78,7 +78,6 @@ def main():
             logger.log_section("Configuration Settings")
             logger.log_dict(
                 {
-                    "auto_paste": config.auto_paste,
                     "reverse_search": config.reverse_search,
                     "case_sensitive": config.case_sensitive,
                     "word_separators": repr(config.word_separators)

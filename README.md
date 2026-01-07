@@ -10,8 +10,24 @@ A tmux plugin inspired by [flash.nvim](https://github.com/folke/flash.nvim) that
 - **Overlay Labels**: Single key selection with labels overlayed on matches in the pane.
 - **Dimmed Display**: Non-matching content is dimmed for visual focus.
 - **Clipboard Copy**: Selected text is immediately copied to the system clipboard.
-- **Auto-paste Mode**: Optional automatic pasting of selected text into the pane.
+- **Auto-paste Modifier**: Use semicolon key as a modifier to automatically paste selected text.
 - **Configurable Word Boundaries**: Honours tmux's `word-separators` by default, with override support.
+
+### Table of Contents
+
+- [Requirements](#requirements)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Customisation](#customisation)
+- [ANSI colour codes](#ansi-colour-codes)
+- [Clipboard Implementation](#clipboard-implementation)
+- [Debugging](#debugging)
+- [Development & Testing](#development--testing)
+- [Future enhancements](#future-enhancements)
+- [Demonstration](#demonstration)
+- [Contributing](#contributing)
+- [Inspiration](#inspiration)
+- [Other plugins](#other-plugins)
 
 ## Requirements
 
@@ -50,16 +66,15 @@ A tmux plugin inspired by [flash.nvim](https://github.com/folke/flash.nvim) that
     run-shell ~/.tmux/plugins/tmux-flash-copy/tmux-flash-copy.tmux
     ```
 
-> [!NOTE]
-> This should be added AFTER any custom variables, so they're correctly sourced.
->
-> For example:
->
-> ```bash
-> set -g @flash-copy-bind-key "f"
-> set -g @flash-copy-prompt-indicator "❯"
-> run-shell ~/.tmux/plugins/tmux-flash-copy/tmux-flash-copy.tmux
-> ```
+    Any customisation variables should be set **BEFORE** the `run-shell` line so they're correctly sourced.
+
+    For example:
+
+    ```bash
+    set -g @flash-copy-bind-key "f"
+    set -g @flash-copy-prompt-indicator "❯"
+    run-shell ~/.tmux/plugins/tmux-flash-copy/tmux-flash-copy.tmux
+    ```
 
 3. Reload your tmux configuration:
 
@@ -69,11 +84,15 @@ A tmux plugin inspired by [flash.nvim](https://github.com/folke/flash.nvim) that
 
 ## Usage
 
-1. Press the bind key (default: `<tmux_prefix> S-f` (that's `<tmux_prefix> shift+f`)) to activate the search.
+1. Press the bind key (default: `<tmux_prefix> S-f` (that's `<tmux_prefix> Shift+f`)) to activate the search.
 2. Type to search for words in the pane. The search is dynamic and updates as you type.
 3. Matching words will be highlighted in yellow with single-character labels in green.
 4. Press the label key corresponding to the word you want to copy.
 5. The selected text is immediately copied to your clipboard, and you are returned to your pane.
+
+> [!TIP]
+> You can auto-paste your selected match by using the `;` (semicolon) modifier key.
+> See the [Auto-paste text](#auto-paste-text) section for more details.
 
 ### Keybindings when search is active
 
@@ -82,7 +101,17 @@ A tmux plugin inspired by [flash.nvim](https://github.com/folke/flash.nvim) that
 | `Ctrl+U`         | Clear the entire search query                                             |
 | `Ctrl+W`         | Clear the previous word                                                   |
 | `Enter`          | Copy the first match (determined by `@flash-copy-reverse-search` setting) |
+| `;`+`<label>`    | Copy and auto-paste the word (if auto-paste enabled)                      |
 | `Ctrl+C` / `ESC` | Cancel and close the popup without copying                                |
+
+### Auto-paste text
+
+By default, selecting a label will copy the text to the clipboard only. If auto-paste is enabled (the default), you can also paste the text automatically:
+
+1. Press `;` (semicolon) (or `Shift+;` (colon) for uppercase labels) to activate the auto-paste modifier
+2. Then press the label key to paste a speific word, or `Enter` to paste the first match
+
+The selected text will be copied to the clipboard AND automatically pasted into your pane.
 
 ## Customisation
 
@@ -92,14 +121,14 @@ The following configuration options are supported. Default values are listed, wi
 
 #### General options
 
-| Option                                                                 | Description                                                |
-| ---------------------------------------------------------------------- | ---------------------------------------------------------- |
-| [`@flash-copy-bind-key`](#flash-copy-bind-key-default-s-f)             | Key binding to activate tmux-flash-copy                    |
-| [`@flash-copy-word-separators`](#flash-copy-word-separators)           | Characters that define word boundaries                     |
-| [`@flash-copy-auto-paste`](#flash-copy-auto-paste-default-off)         | Controls whether the selected text is automatically pasted |
-| [`@flash-copy-case-sensitive`](#flash-copy-case-sensitive-default-off) | Case-sensitive searching                                   |
-| [`@flash-copy-reverse-search`](#flash-copy-reverse-search-default-on)  | Direction of label assignment when searching               |
-| [`@flash-copy-debug`](#debugging)                                      | Enable debug logging                                       |
+| Option                                                                      | Description                                  |
+| --------------------------------------------------------------------------- | -------------------------------------------- |
+| [`@flash-copy-bind-key`](#flash-copy-bind-key-default-s-f)                  | Key binding to activate tmux-flash-copy      |
+| [`@flash-copy-word-separators`](#flash-copy-word-separators)                | Characters that define word boundaries       |
+| [`@flash-copy-case-sensitive`](#flash-copy-case-sensitive-default-off)      | Case-sensitive searching                     |
+| [`@flash-copy-reverse-search`](#flash-copy-reverse-search-default-on)       | Direction of label assignment when searching |
+| [`@flash-copy-auto-paste`](#flash-copy-auto-paste-default-on)                 | Enable auto-paste modifier functionality     |
+| [`@flash-copy-debug`](#debugging)                                           | Enable debug logging                         |
 
 #### Prompt
 
@@ -152,18 +181,6 @@ set -g @flash-copy-word-separators ' ()":,;<>~!@#$%^&*|+=[]{}?`'
 set -ag @flash-copy-word-separators "'"
 ```
 
-#### `@flash-copy-auto-paste` (default: `off`)
-
-Controls whether the selected text is automatically pasted into the pane after copying.
-
-- `on` or `true`: Copies the text AND pastes it into the pane
-- `off` or `false`: Only copies the text to the clipboard (default behaviour)
-
-```bash
-# Enable auto-paste (copies and pastes the text)
-set -g @flash-copy-auto-paste "on"
-```
-
 #### `@flash-copy-case-sensitive` (default: `off`)
 
 Controls whether search is case-sensitive or case-insensitive.
@@ -188,6 +205,18 @@ Setting to `off` is useful if you have your `@flash-copy-prompt-position` at the
 ```bash
 # Switch to top-to-bottom search
 set -g @flash-copy-reverse-search "off"
+```
+
+#### `@flash-copy-auto-paste` (default: `on`)
+
+Controls whether the auto-paste modifier (semicolon and colon keys) is enabled.
+
+- `on` or `true`: Auto-paste modifier is enabled (default). Pressing `;` (semicolon) or `:` (colon) activates the auto-paste mode, allowing you to copy and automatically paste selected text.
+- `off` or `false`: Auto-paste modifier is disabled. The `;` (semicolon) and `:` (colon) keys work as regular characters in search queries instead of being reserved for the modifier.
+
+```bash
+# Disable auto-paste modifier (semicolon and colon work in searches)
+set -g @flash-copy-auto-paste "off"
 ```
 
 #### `@flash-copy-prompt-position` (default: `bottom`)
@@ -307,16 +336,6 @@ Common ANSI colour codes.
 
 For information on clipboard methods, troubleshooting, and platform-specific recommendations, see [CLIPBOARD.md](CLIPBOARD.md).
 
-## Demonstration
-
-The following configuration is used in the demonstration GIF.
-
-```bash
-set -g @plugin 'kristijan/tmux-flash-copy'
-set -g @flash-copy-prompt-indicator "❯"
-set -g @flash-copy-prompt-colour "\033[38;2;203;166;247m"
-```
-
 ## Debugging
 
 For information on debugging information, including log format, troubleshooting specific issues, and example debug sessions, see [DEBUGGING.md](DEBUGGING.md).
@@ -329,6 +348,16 @@ For information on setting up a development environment, running tests, and code
 
 - [ ] I'm manually parsing the output of `tmux` commands using a subprocess. This should ideally be using something like [libtmux](https://github.com/tmux-python/libtmux). I might consider switching to this in a major revision update, as I'm likely leaving increased performance on the table.
 - [ ] Initially I tried getting this to work using the terminal and tmux's alternate screen functionality, but could come to a solution that didn't involve using `send-keys` to enable alternate screen. Using an alternate screen could potentially simplify the popup placement logic.
+
+## Demonstration
+
+The following configuration is used in the demonstration GIF.
+
+```bash
+set -g @plugin 'kristijan/tmux-flash-copy'
+set -g @flash-copy-prompt-indicator "❯"
+set -g @flash-copy-prompt-colour "\033[38;2;203;166;247m"
+```
 
 ## Contributing
 
