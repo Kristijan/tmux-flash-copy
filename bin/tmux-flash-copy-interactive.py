@@ -228,18 +228,25 @@ class InteractiveUI:
 
         return base_output
 
-    def _display_line_with_matches(self, display_line: str, line_idx: int) -> str:
+    def _display_line_with_matches(self, display_line: str, line_idx: int, line_plain: str) -> str:
         """
         Process and format a line that contains matches.
 
-        Applies highlighting to matched text and adds match labels.
+        Applies highlighting to matched text and adds match labels. The function
+        accepts the plain (ANSI-stripped) version of the line as ``line_plain``
+        so it can inspect raw characters (for example, to detect a single space
+        following a matched word and overwrite it with the label instead of
+        inserting a character that would shift the line).
 
         Args:
-            display_line: The line content with ANSI codes
-            line_idx: The line index in the pane content
+            display_line: The line content including ANSI escape codes.
+            line_idx: The line index in the pane content.
+            line_plain: The same line with ANSI codes removed (plain characters).
 
         Returns:
-            The line with highlights and labels applied
+            The coloured line with highlights and labels applied. If a space
+            follows a matched word, the label will replace that space to avoid
+            changing visible layout.
         """
         matches_on_line = self.search_interface.get_matches_at_line(line_idx)
 
@@ -250,52 +257,72 @@ class InteractiveUI:
 
             # Get the matched word and its position
             word_start = match.col
-            word_end = match.col + len(match.text)
             match_start_in_word = match.match_start
             match_end_in_word = match.match_end
 
             # Find positions in coloured line using AnsiUtils
             coloured_word_start = AnsiUtils.map_position_to_coloured(display_line, word_start)
-            coloured_word_end = AnsiUtils.map_position_to_coloured(display_line, word_end)
             coloured_match_start_in_word = AnsiUtils.map_position_to_coloured(
                 display_line[coloured_word_start:], match_start_in_word
             )
 
-            # Build the replacement for this word with highlighting
-            # Split into: before match, matched part (yellow), after match, label (green)
-            before_match = display_line[
-                coloured_word_start : coloured_word_start + coloured_match_start_in_word
-            ]
+            # We'll place the label by replacing (or inserting) the single plain
+            # character immediately after the matched substring, then apply
+            # highlighting to the matched substring. Doing the single-character
+            # replacement first keeps index calculations simpler (we're
+            # processing right-to-left so changes to the right won't affect
+            # earlier positions).
 
-            # Find the end position of the matched part in coloured line
-            plain_match_end = word_start + match_end_in_word
-            coloured_match_end = AnsiUtils.map_position_to_coloured(display_line, plain_match_end)
+            # Compute the plain index of the character to replace (immediately
+            # after the matched substring)
+            plain_replace_index = word_start + match_end_in_word
 
+            # Insert or replace the single plain character with the coloured label
+            if plain_replace_index < len(line_plain):
+                coloured_replace_start = AnsiUtils.map_position_to_coloured(
+                    display_line, plain_replace_index
+                )
+                # How many bytes in the coloured string correspond to one plain char
+                coloured_skip_len = AnsiUtils.map_position_to_coloured(
+                    display_line[coloured_replace_start:], 1
+                )
+                # Replace that single plain character with the coloured label
+                coloured_label = f"{self.config.label_colour}{match.label}{AnsiStyles.RESET}"
+                display_line = (
+                    display_line[:coloured_replace_start]
+                    + coloured_label
+                    + display_line[coloured_replace_start + coloured_skip_len :]
+                )
+            else:
+                # No character to replace (end of line) — insert label after match
+                coloured_insert_pos = AnsiUtils.map_position_to_coloured(
+                    display_line, plain_replace_index
+                )
+                coloured_label = f"{self.config.label_colour}{match.label}{AnsiStyles.RESET}"
+                display_line = (
+                    display_line[:coloured_insert_pos]
+                    + coloured_label
+                    + display_line[coloured_insert_pos:]
+                )
+
+            # Recompute coloured positions after the label insertion/replacement
+            coloured_word_start = AnsiUtils.map_position_to_coloured(display_line, word_start)
+            coloured_match_start_in_word = AnsiUtils.map_position_to_coloured(
+                display_line[coloured_word_start:], match_start_in_word
+            )
+            coloured_match_start_abs = coloured_word_start + coloured_match_start_in_word
             # Use plain text for matched part to avoid colour code conflicts
             plain_matched_part = match.text[match_start_in_word:match_end_in_word]
-            after_word = display_line[coloured_word_end:]
+            coloured_match_end = AnsiUtils.map_position_to_coloured(
+                display_line, word_start + match_end_in_word
+            )
 
-            # Calculate how many characters to skip after the label to maintain width
-            # Labels are single characters, so skip 1 character from the remaining text
-            label_length = len(match.label)
-            remaining_after_match = display_line[coloured_match_end:coloured_word_end]
-
-            # Map to find position after skipping label_length characters in the plain text
-            remaining_plain = match.text[match_end_in_word:]
-            chars_to_skip = min(label_length, len(remaining_plain))
-
-            # Find the position in the coloured string after skipping chars_to_skip
-            if chars_to_skip > 0:
-                skip_pos = AnsiUtils.map_position_to_coloured(remaining_after_match, chars_to_skip)
-                remaining_after_label = remaining_after_match[skip_pos:]
-            else:
-                remaining_after_label = remaining_after_match
-
-            # Build replacement with highlight and label colours
-            replacement = f"{before_match}{AnsiStyles.RESET}{self.config.highlight_colour}{plain_matched_part}{AnsiStyles.RESET}{self.config.label_colour}{match.label}{AnsiStyles.RESET}{AnsiStyles.DIM}{remaining_after_label}"
-
-            # Replace in display line
-            display_line = display_line[:coloured_word_start] + replacement + after_word
+            # Wrap the matched substring with highlight colour (do not add label
+            # here; we've already inserted/replaced it above)
+            before_match = display_line[:coloured_match_start_abs]
+            after_matched = display_line[coloured_match_end:]
+            highlighted = f"{AnsiStyles.RESET}{self.config.highlight_colour}{plain_matched_part}{AnsiStyles.RESET}"
+            display_line = before_match + highlighted + after_matched
 
         return display_line
 
@@ -334,7 +361,10 @@ class InteractiveUI:
 
             # For lines with matches, highlight the matched text and add labels
             dimmed_line = self._dim_coloured_line(line) if self.search_query else line
-            display_line = self._display_line_with_matches(dimmed_line, line_idx)
+            # Pass the plain (ANSI-stripped) version of the line so we can inspect
+            # plain characters (e.g. to detect a following space to overwrite).
+            plain_line = lines_plain[line_idx]
+            display_line = self._display_line_with_matches(dimmed_line, line_idx, plain_line)
 
             # Skip newline on last line to prevent blank line before search bar
             if is_last_line:
