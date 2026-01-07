@@ -50,6 +50,17 @@ A tmux plugin inspired by [flash.nvim](https://github.com/folke/flash.nvim) that
     run-shell ~/.tmux/plugins/tmux-flash-copy/tmux-flash-copy.tmux
     ```
 
+    > [!NOTE]
+    > This should be added AFTER any custom variables, so they're correctly sourced.
+    >
+    > For example:
+    >
+    > ```bash
+    > set -g @flash-copy-bind-key "f"
+    > set -g @flash-copy-prompt-indicator "❯"
+    > run-shell ~/.tmux/plugins/tmux-flash-copy/tmux-flash-copy.tmux
+    > ```
+
 3. Reload your tmux configuration:
 
     ```bash
@@ -135,7 +146,7 @@ This allows you to control what constitutes a "word" for the plugin. This is par
 
 ```bash
 # Use custom word separators (overrides tmux's word-separators)
-set -g @flash-copy-word-separators ' ()":,;<>~!@#$%^&*|+=[]{}?'
+set -g @flash-copy-word-separators ' ()":,;<>~!@#$%^&*|+=[]{}?`'
 
 # To add single quote to the separators
 set -ag @flash-copy-word-separators "'"

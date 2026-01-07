@@ -10,7 +10,7 @@ Set FontSize 16
 Set Padding 0
 Set Framerate 60
 Set Width 1000
-Set Height 600
+Set Height 610
 
 # Shell setup
 Set Shell zsh
@@ -33,19 +33,19 @@ Type "bat -pp tmux-flash-copy.tmux" Enter
 Sleep 500ms
 
 # Commentary
-Type `"I'll now search for the word 'option_override' in this file using tmux-flash-copy"`
+Type `"I'll now search for the word 'option_override' in this output using tmux-flash-copy"`
 Sleep 2s
 Ctrl+u
 
 # Start tmux-flash-copy
 Ctrl+p
 Sleep 500ms
-Type "F"
+Type "f"
 Sleep 500ms
 
 # Type search query
 Type@500ms "option"
-Sleep 2s
+Sleep 1.5s
 Type "j"
 
 # Paste copied text
@@ -53,8 +53,9 @@ Type `"I selected label 'j', and the text is now in my clipboard!"`
 Sleep 1s
 Ctrl+u
 Copy "option_override"
-Type "Pasting... "
-Sleep 500ms
+Type "Pasting"
+Type@500ms "..."
+Type " "
 Paste
 
 # Admire the output for a bit.
