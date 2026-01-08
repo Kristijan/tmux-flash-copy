@@ -1,54 +1,9 @@
 """Tests for utils module."""
 
 import subprocess
-import tempfile
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from src.utils import FileUtils, PaneDimensions, SubprocessUtils, TmuxPaneUtils
-
-
-class TestFileUtils:
-    """Test FileUtils functionality."""
-
-    def test_cleanup_dir_removes_existing_directory(self):
-        """Test cleanup_dir removes an existing directory."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            test_dir = Path(tmpdir) / "test_cleanup"
-            test_dir.mkdir()
-            test_file = test_dir / "test.txt"
-            test_file.write_text("test content")
-
-            assert test_dir.exists()
-            result = FileUtils.cleanup_dir(str(test_dir))
-
-            assert result is True
-            assert not test_dir.exists()
-
-    def test_cleanup_dir_succeeds_for_nonexistent_directory(self):
-        """Test cleanup_dir succeeds when directory doesn't exist."""
-        result = FileUtils.cleanup_dir("/nonexistent/path/to/directory")
-        assert result is True
-
-    def test_cleanup_dir_handles_permission_error(self):
-        """Test cleanup_dir handles permission errors gracefully."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            test_dir = Path(tmpdir) / "test_cleanup"
-            test_dir.mkdir()
-
-            with patch("src.utils.shutil.rmtree", side_effect=PermissionError("No permission")):
-                result = FileUtils.cleanup_dir(str(test_dir))
-                assert result is False
-
-    def test_cleanup_dir_handles_os_error(self):
-        """Test cleanup_dir handles OS errors gracefully."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            test_dir = Path(tmpdir) / "test_cleanup"
-            test_dir.mkdir()
-
-            with patch("src.utils.shutil.rmtree", side_effect=OSError("OS error")):
-                result = FileUtils.cleanup_dir(str(test_dir))
-                assert result is False
+from src.utils import PaneDimensions, SubprocessUtils, TmuxPaneUtils
 
 
 class TestSubprocessUtils:

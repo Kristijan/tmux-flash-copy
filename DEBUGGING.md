@@ -9,6 +9,7 @@ This document explains how to enable and use the debugging features in tmux-flas
   - [Disable Debug Mode](#disable-debug-mode)
 - [Debug Log Location](#debug-log-location)
 - [Visual Debug Indicator](#visual-debug-indicator)
+- [Idle Timeout](#idle-timeout)
 - [What Gets Logged](#what-gets-logged)
   - [1. Session Header](#1-session-header)
   - [2. Configuration Settings](#2-configuration-settings)
@@ -81,6 +82,80 @@ When debug mode is active, you'll see a persistent indicator on the right side o
 ```
 
 This serves as a visual reminder that debug logging is enabled.
+
+## Idle Timeout
+
+To prevent the popup from blocking indefinitely if left open, tmux-flash-copy includes an **automatic idle timeout**:
+
+### Behavior
+
+- **Timeout duration**: 15 seconds of inactivity (configurable via `@flash-copy-idle-timeout`)
+- **Warning**: Appears 5 seconds before timeout (at 10 seconds elapsed), showing countdown (configurable via `@flash-copy-idle-warning`)
+- **Auto-exit**: At 15 seconds, the popup closes automatically (same as pressing ESC)
+
+The `@flash-copy-idle-warning` value specifies how many seconds BEFORE the timeout the warning should appear. For example, with the default settings (timeout=15, warning=5), the warning appears at 10 seconds elapsed (15 - 5 = 10).
+
+### Warning Message
+
+When the warning appears, you'll see a yellow countdown message:
+
+```text
+───────────────────────────────────────────────────
+> search...              Idle, terminating in 7s...
+```
+
+The warning takes priority over the debug indicator when both would be displayed.
+
+### Why This Exists
+
+The timeout serves as a safety mechanism to:
+
+1. **Prevent indefinite blocking**: If the popup is left open accidentally, it won't block tmux forever
+2. **Free resources**: Closes the popup if you walk away from your computer
+3. **Handle edge cases**: Catches rare bugs that might cause the UI to hang
+
+### Timeout Coordination
+
+The implementation uses two coordinated timeouts:
+
+- **Child process (interactive UI)**: Configurable self-timeout (default: 15 seconds) with configurable warning (default: 5 seconds before timeout, appearing at 10 seconds elapsed)
+- **Parent process**: Child timeout + 5 seconds safety margin to catch unexpected hangs
+
+The child process always exits gracefully at the configured timeout. The parent's timeout is a backup that should never be reached under normal circumstances.
+
+**Note**: The warning value represents seconds BEFORE timeout, not absolute time. If `@flash-copy-idle-warning` is set equal to or greater than `@flash-copy-idle-timeout`, no warning will be displayed.
+
+### Debug Logging
+
+When debug mode is enabled, timeout events are logged:
+
+```text
+[2026-01-08T11:28:10.123] Showing idle timeout warning
+[2026-01-08T11:28:15.456] Idle timeout (15s) - auto-exiting
+```
+
+### User Control
+
+You can always exit before the timeout by:
+
+- Pressing **ESC** to cancel
+- Pressing **Ctrl+C** to cancel
+- Selecting text with a label key
+- Closing the tmux pane
+
+### Configuration
+
+The idle timeout behavior can be customized via tmux configuration options:
+
+```bash
+# Set idle timeout to 30 seconds (default: 15)
+set -g @flash-copy-idle-timeout "30"
+
+# Show warning 10 seconds before timeout (default: 5)
+set -g @flash-copy-idle-warning "10"
+```
+
+See the [Configuration Options](README.md#configuration-options) section in README.md for more details.
 
 ## What Gets Logged
 

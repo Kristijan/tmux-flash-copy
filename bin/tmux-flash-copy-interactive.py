@@ -7,10 +7,14 @@ and handling user input for label selection.
 """
 
 import argparse
+import math
 import os
+import select
 import shutil
+import subprocess
 import sys
 import termios
+import time
 import tty
 from pathlib import Path
 from typing import Optional
@@ -26,6 +30,11 @@ from src.debug_logger import DebugLogger  # noqa: E402
 from src.pane_capture import PaneCapture  # noqa: E402
 from src.search_interface import SearchInterface  # noqa: E402
 
+# Idle timeout defaults (configurable via @flash-copy-idle-timeout and @flash-copy-idle-warning)
+# These are kept as constants for backwards compatibility and fallback
+DEFAULT_IDLE_TIMEOUT_SECONDS = 15
+DEFAULT_IDLE_WARNING_SECONDS = 5
+
 
 class InteractiveUI:
     """Manages the interactive search UI in the terminal."""
@@ -33,7 +42,6 @@ class InteractiveUI:
     def __init__(
         self,
         pane_id: str,
-        temp_dir: str,
         pane_content: str,
         dimensions: dict,
         config: FlashCopyConfig,
@@ -43,13 +51,11 @@ class InteractiveUI:
 
         Args:
             pane_id: The tmux pane ID
-            temp_dir: Temporary directory for state files
             pane_content: The captured pane content
             dimensions: Pane dimensions dict
             config: FlashCopyConfig with all configuration options
         """
         self.pane_id = pane_id
-        self.temp_dir = temp_dir
         self.pane_content = pane_content
         # Strip ANSI codes for searching
         self.pane_content_plain = AnsiUtils.strip_ansi_codes(pane_content)
@@ -68,6 +74,9 @@ class InteractiveUI:
         self.current_matches = []
         self.autopaste_modifier_active = False
         self.last_logged_modifier = None  # Track last logged modifier state to avoid repetition
+        # Timeout tracking
+        self.start_time: float = 0.0
+        self.timeout_warning_shown = False
         # Initialize debug logger if enabled
         self.debug_logger = (
             DebugLogger.get_instance()
@@ -112,15 +121,21 @@ class InteractiveUI:
         """
         Read a single character or escape sequence from stdin without waiting for Enter.
 
+        Uses select() with a short timeout to avoid blocking, allowing the main loop
+        to check for idle timeout periodically.
+
         Returns:
-            The character or special value read, or empty string on EOF
+            The character or special value read, empty string if no input available
         """
         try:
             fd = sys.stdin.fileno()
+
             # Check if stdin is a TTY before attempting to set raw mode
             if not os.isatty(fd):
-                # If not a TTY (e.g., in a tmux popup), read one character directly
-                # This will block until input is available
+                # If not a TTY (e.g., in a tmux popup), use select and read directly
+                readable, _, _ = select.select([sys.stdin], [], [], 0.1)
+                if not readable:
+                    return ""
                 char = sys.stdin.read(1)
                 if not char:  # EOF
                     return ControlChars.CTRL_C  # Treat EOF as Ctrl+C
@@ -129,9 +144,18 @@ class InteractiveUI:
                     return self._handle_escape_sequence()
                 return char
 
+            # For TTY, set raw mode first, then use select
             old_settings = termios.tcgetattr(fd)
             try:
                 tty.setraw(fd)
+                # Use select to check if input is available (0.1 second timeout)
+                # This allows us to return to the main loop to check idle timeout
+                readable, _, _ = select.select([fd], [], [], 0.1)
+
+                if not readable:
+                    # No input available, return empty string to continue loop
+                    return ""
+
                 char = sys.stdin.read(1)
                 if not char:  # EOF
                     return ControlChars.CTRL_C  # Treat EOF as Ctrl+C
@@ -162,14 +186,14 @@ class InteractiveUI:
 
     def _clear_screen(self):
         """Clear the terminal screen."""
-        sys.stdout.write(TerminalSequences.CLEAR_SCREEN)
-        sys.stdout.flush()
+        sys.stderr.write(TerminalSequences.CLEAR_SCREEN)
+        sys.stderr.flush()
 
     def _reset_terminal(self):
         """Reset terminal state (scrolling region, etc.)."""
         # Reset scrolling region to full screen (ANSI: \033[r)
-        sys.stdout.write("\033[r")
-        sys.stdout.flush()
+        sys.stderr.write("\033[r")
+        sys.stderr.flush()
 
     def _dim_coloured_line(self, line: str) -> str:
         """Apply dimming to a line with ANSI colour codes.
@@ -210,15 +234,31 @@ class InteractiveUI:
                 f"{self.config.prompt_colour}{self.config.prompt_indicator}{AnsiStyles.RESET} "
             )
 
-        # Add debug indicator if enabled (right-aligned)
-        if self.debug_logger and self.debug_logger.enabled:
-            try:
-                term_width = shutil.get_terminal_size().columns
-            except OSError:
-                term_width = 80
+        # Try to get terminal width for right-aligned indicators
+        try:
+            term_width = shutil.get_terminal_size().columns
+        except OSError:
+            term_width = 80
 
+        base_visible_len = AnsiUtils.get_visible_length(base_output)
+
+        # Add timeout warning if active (takes priority over debug indicator)
+        if self.timeout_warning_shown:
+            elapsed = time.time() - self.start_time
+            remaining = math.ceil(self.config.idle_timeout - elapsed)
+            warning_text = f"Idle, terminating in {remaining}s..."
+            warning_visible_len = len(warning_text)
+
+            # Only add if there's enough space
+            if base_visible_len + warning_visible_len + 3 < term_width:
+                padding = term_width - base_visible_len - warning_visible_len - 1
+                base_output += (
+                    " " * padding + f"{AnsiStyles.BOLD}\033[33m{warning_text}{AnsiStyles.RESET}"
+                )
+
+        # Add debug indicator if enabled and no timeout warning (right-aligned)
+        elif self.debug_logger and self.debug_logger.enabled:
             debug_text = "!! DEBUG ON !!"
-            base_visible_len = AnsiUtils.get_visible_length(base_output)
             debug_visible_len = len(debug_text)
 
             # Only add if there's enough space (at least 3 chars padding between prompt and debug text)
@@ -352,10 +392,10 @@ class InteractiveUI:
 
                 # Skip newline on last line to prevent blank line before search bar
                 if is_last_line:
-                    sys.stdout.write(output)
-                    sys.stdout.flush()  # Flush immediately after last line
+                    sys.stderr.write(output)
+                    sys.stderr.flush()  # Flush immediately after last line
                 else:
-                    print(output)
+                    print(output, file=sys.stderr)
                 content_lines_printed += 1
                 continue
 
@@ -368,10 +408,10 @@ class InteractiveUI:
 
             # Skip newline on last line to prevent blank line before search bar
             if is_last_line:
-                sys.stdout.write(display_line)
-                sys.stdout.flush()  # Flush immediately after last line
+                sys.stderr.write(display_line)
+                sys.stderr.flush()  # Flush immediately after last line
             else:
-                print(display_line)
+                print(display_line, file=sys.stderr)
             content_lines_printed += 1
 
     def _display_content(self):
@@ -408,26 +448,26 @@ class InteractiveUI:
         # If search bar is at the top, display it first
         if self.config.prompt_position == "top":
             search_output = self._build_search_bar_output()
-            sys.stdout.write(search_output)
-            sys.stdout.write("\n")
+            sys.stderr.write(search_output)
+            sys.stderr.write("\n")
 
             # Set scrolling region to protect only the prompt (line 1)
             # Line 1 = prompt, Lines 2+ = scrollable content
-            sys.stdout.write(f"\033[2;{popup_height}r")
+            sys.stderr.write(f"\033[2;{popup_height}r")
             # Position cursor at start of scrollable region (line 2, column 1)
-            sys.stdout.write("\033[2;1H")
+            sys.stderr.write("\033[2;1H")
 
-            sys.stdout.flush()
+            sys.stderr.flush()
 
         # If search bar is at the bottom, set up scrolling region first
         if self.config.prompt_position == "bottom":
             # Protect only bottom line (search bar)
             scrollable_bottom = popup_height - 1
 
-            sys.stdout.write(f"\033[1;{scrollable_bottom}r")
+            sys.stderr.write(f"\033[1;{scrollable_bottom}r")
             # Position cursor at start of scrollable region (line 1, column 1)
-            sys.stdout.write("\033[1;1H")
-            sys.stdout.flush()
+            sys.stderr.write("\033[1;1H")
+            sys.stderr.flush()
 
         # Display pane content (limit to available height)
         self._display_pane_content(lines, lines_plain, available_height)
@@ -440,30 +480,30 @@ class InteractiveUI:
             if self.search_query:
                 cursor_col += len(self.search_query)
             # ANSI escape: \033[{row};{col}H positions cursor at row, col (1-indexed)
-            sys.stdout.write(f"\033[1;{cursor_col}H")
-            sys.stdout.flush()
+            sys.stderr.write(f"\033[1;{cursor_col}H")
+            sys.stderr.flush()
 
         # If search bar is at the bottom, render it in the protected area
         if self.config.prompt_position == "bottom":
             # Flush any pending output first
-            sys.stdout.flush()
+            sys.stderr.flush()
 
             search_output = self._build_search_bar_output()
 
             # Position search bar at last line
             search_bar_line = popup_height
-            sys.stdout.write(f"\033[{search_bar_line};1H")
+            sys.stderr.write(f"\033[{search_bar_line};1H")
             # Write search bar
-            sys.stdout.write(search_output)
+            sys.stderr.write(search_output)
 
             # Position cursor after the prompt and search query (on the left side)
             # Calculate the visible cursor position (ignore ANSI codes and right-aligned debug text)
             cursor_col = len(self.config.prompt_indicator) + 2
             if self.search_query:
                 cursor_col += len(self.search_query)
-            sys.stdout.write(f"\033[{cursor_col}G")
+            sys.stderr.write(f"\033[{cursor_col}G")
 
-            sys.stdout.flush()
+            sys.stderr.flush()
 
     def run(self) -> Optional[str]:
         """
@@ -473,9 +513,38 @@ class InteractiveUI:
             The selected text if a match was chosen, None if cancelled
         """
         try:
+            # Track start time for idle timeout
+            self.start_time = time.time()
+
             self._display_content()
 
             while True:
+                # Check for idle timeout
+                elapsed = time.time() - self.start_time
+
+                if elapsed >= self.config.idle_timeout:
+                    # Timeout exceeded - exit gracefully
+                    if self.debug_logger and self.debug_logger.enabled:
+                        self.debug_logger.log(
+                            f"Idle timeout ({self.config.idle_timeout}s) - auto-exiting"
+                        )
+                    self._save_result("", should_paste=False)
+                    return None
+
+                # Calculate warning threshold (show warning X seconds before timeout)
+                # Only show warning if idle_warning < idle_timeout
+                warning_threshold = self.config.idle_timeout - self.config.idle_warning
+                if (
+                    elapsed >= warning_threshold
+                    and not self.timeout_warning_shown
+                    and self.config.idle_warning < self.config.idle_timeout
+                ):
+                    # Show warning message
+                    self.timeout_warning_shown = True
+                    if self.debug_logger and self.debug_logger.enabled:
+                        self.debug_logger.log("Showing idle timeout warning")
+                    self._display_content()
+
                 try:
                     char = self._get_single_char()
                 except Exception as e:
@@ -488,6 +557,10 @@ class InteractiveUI:
                 # Ignore empty characters (escape sequences we want to skip)
                 if char == "":
                     continue
+
+                # User provided input - reset idle timeout
+                self.start_time = time.time()
+                self.timeout_warning_shown = False
 
                 # Handle control characters
                 if char == ControlChars.CTRL_C:
@@ -592,30 +665,46 @@ class InteractiveUI:
             self._clear_screen()
 
     def _save_result(self, text: str, should_paste: bool = False):
-        """Save the result to a file for the parent process.
+        """Store the result in a tmux buffer for the parent process to read.
 
         Args:
             text: The selected text to copy
             should_paste: Whether to auto-paste after copying
         """
-        result_file = os.path.join(self.temp_dir, "result.txt")
-        with open(result_file, "w") as f:
-            f.write(text)
+        logger = DebugLogger.get_instance()
 
-        # Save paste flag to separate file
-        paste_flag_file = os.path.join(self.temp_dir, "should_paste.txt")
-        with open(paste_flag_file, "w") as f:
-            f.write("true" if should_paste else "false")
+        # Store result in a tmux buffer for parent to read
+        # Using a unique buffer name to avoid conflicts with user buffers
+        try:
+            if logger.enabled:
+                logger.log(f"Writing result to tmux buffer (length: {len(text)})")
+                logger.log(f"Auto-paste: {should_paste}")
+
+            result = subprocess.run(
+                ["tmux", "set-buffer", "-b", "__tmux_flash_copy_result__", text],
+                check=True,
+                capture_output=True,
+            )
+
+            if logger.enabled:
+                logger.log(f"Buffer write successful, exit code: {result.returncode}")
+        except subprocess.CalledProcessError as e:
+            # If buffer write fails, exit with error code
+            if logger.enabled:
+                logger.log(f"Buffer write FAILED: {e}")
+            sys.exit(1)
+
+        # Use exit code to communicate paste flag: 10 for paste, 0 for copy
+        exit_code = 10 if should_paste else 0
+        if logger.enabled:
+            logger.log(f"Exiting with code {exit_code}")
+        sys.exit(exit_code)
 
 
 def main():
     """Main entry point for the interactive UI."""
     parser = argparse.ArgumentParser(description="Interactive search UI for tmux-flash-copy")
     parser.add_argument("--pane-id", required=True, help="The tmux pane ID")
-    parser.add_argument("--temp-dir", required=True, help="Temporary directory path")
-    parser.add_argument(
-        "--pane-content-file", default="", help="Path to file containing pane content"
-    )
     parser.add_argument(
         "--reverse-search", default="True", help="Enable reverse search (bottom to top)"
     )
@@ -643,27 +732,25 @@ def main():
         default="",
         help="Custom label characters to use for match labels (overrides default)",
     )
+    parser.add_argument(
+        "--idle-timeout",
+        default="15",
+        help="Idle timeout in seconds before auto-exit",
+    )
+    parser.add_argument(
+        "--idle-warning",
+        default="5",
+        help="Seconds before timeout to show warning",
+    )
 
     args = parser.parse_args()
 
     try:
-        # Get pane content - either from file (fast) or by capturing (fallback)
-        if args.pane_content_file and os.path.exists(args.pane_content_file):
-            # Read from file to avoid redundant capture
-            try:
-                with open(args.pane_content_file) as f:
-                    pane_content = f.read()
-            except OSError:
-                # File read failed, fall back to capturing
-                capture = PaneCapture(args.pane_id)
-                pane_content = capture.capture_pane()
-        else:
-            # No file provided or doesn't exist, capture directly
-            capture = PaneCapture(args.pane_id)
-            pane_content = capture.capture_pane()
+        # Get pane content by capturing
+        capture = PaneCapture(args.pane_id)
+        pane_content = capture.capture_pane()
 
         # Get pane dimensions
-        capture = PaneCapture(args.pane_id)
         dimensions = capture.get_pane_dimensions()
 
         # Reconstruct FlashCopyConfig from command line arguments
@@ -680,6 +767,8 @@ def main():
             debug_enabled=args.debug_enabled.lower() in ("true", "1", "yes", "on"),
             auto_paste_enable=args.auto_paste.lower() in ("true", "1", "yes", "on"),
             label_characters=args.label_characters if args.label_characters else None,
+            idle_timeout=int(args.idle_timeout),
+            idle_warning=int(args.idle_warning),
         )
 
         # Initialize debug logger if enabled
@@ -689,7 +778,7 @@ def main():
             logger.log(f"Pane dimensions: {dimensions}")
 
         # Run interactive UI
-        ui = InteractiveUI(args.pane_id, args.temp_dir, pane_content, dimensions, config)
+        ui = InteractiveUI(args.pane_id, pane_content, dimensions, config)
         ui.run()
 
         # Exit explicitly to close the popup

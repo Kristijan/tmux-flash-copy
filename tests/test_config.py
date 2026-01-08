@@ -245,6 +245,42 @@ class TestConfigLoader:
         assert result == "bottom"
 
     @patch("src.config.ConfigLoader._read_tmux_option")
+    def test_get_int_with_value(self, mock_read):
+        """Test getting integer option with valid value."""
+        mock_read.return_value = "30"
+
+        result = ConfigLoader.get_int("@test-option", default=15)
+
+        assert result == 30
+
+    @patch("src.config.ConfigLoader._read_tmux_option")
+    def test_get_int_default(self, mock_read):
+        """Test getting integer option with missing value."""
+        mock_read.return_value = ""
+
+        result = ConfigLoader.get_int("@test-option", default=15)
+
+        assert result == 15
+
+    @patch("src.config.ConfigLoader._read_tmux_option")
+    def test_get_int_invalid_value(self, mock_read):
+        """Test getting integer option with invalid value."""
+        mock_read.return_value = "not_a_number"
+
+        result = ConfigLoader.get_int("@test-option", default=15)
+
+        assert result == 15
+
+    @patch("src.config.ConfigLoader._read_tmux_option")
+    def test_get_int_negative(self, mock_read):
+        """Test getting integer option with negative value."""
+        mock_read.return_value = "-5"
+
+        result = ConfigLoader.get_int("@test-option", default=15)
+
+        assert result == -5
+
+    @patch("src.config.ConfigLoader._read_tmux_option")
     def test_get_word_separators_custom_override(self, mock_read):
         """Test getting word separators with custom override."""
         mock_read.return_value = " -_"
@@ -309,11 +345,14 @@ class TestConfigLoader:
 
         assert result == "default"
 
+    @patch("src.config.ConfigLoader.get_int")
     @patch("src.config.ConfigLoader.get_choice")
     @patch("src.config.ConfigLoader.get_bool")
     @patch("src.config.ConfigLoader.get_string")
     @patch("src.config.ConfigLoader.get_word_separators")
-    def test_load_all_flash_copy_config(self, mock_word_sep, mock_string, mock_bool, mock_choice):
+    def test_load_all_flash_copy_config(
+        self, mock_word_sep, mock_string, mock_bool, mock_choice, mock_int
+    ):
         """Test loading all flash-copy configuration."""
         mock_choice.side_effect = ["bottom"]
         mock_bool.side_effect = [True, False, False, True]  # auto_paste_enable defaults to True
@@ -326,6 +365,7 @@ class TestConfigLoader:
             "\033[1m",
             "",
         ]
+        mock_int.side_effect = [15, 5]  # idle_timeout, idle_warning
 
         config = ConfigLoader.load_all_flash_copy_config()
 
@@ -341,13 +381,16 @@ class TestConfigLoader:
         assert config.prompt_colour == "\033[1m"
         assert config.debug_enabled is False
         assert config.auto_paste_enable is True
+        assert config.idle_timeout == 15
+        assert config.idle_warning == 5
 
+    @patch("src.config.ConfigLoader.get_int")
     @patch("src.config.ConfigLoader.get_choice")
     @patch("src.config.ConfigLoader.get_bool")
     @patch("src.config.ConfigLoader.get_string")
     @patch("src.config.ConfigLoader.get_word_separators")
     def test_load_all_flash_copy_config_auto_paste_disabled(
-        self, mock_word_sep, mock_string, mock_bool, mock_choice
+        self, mock_word_sep, mock_string, mock_bool, mock_choice, mock_int
     ):
         """Test loading flash-copy configuration with auto-paste disabled."""
         mock_choice.side_effect = ["top"]
@@ -361,7 +404,10 @@ class TestConfigLoader:
             "\033[1m",
             "",
         ]
+        mock_int.side_effect = [30, 10]  # custom idle_timeout, idle_warning
 
         config = ConfigLoader.load_all_flash_copy_config()
 
         assert config.auto_paste_enable is False
+        assert config.idle_timeout == 30
+        assert config.idle_warning == 10
