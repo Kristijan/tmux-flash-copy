@@ -6,6 +6,7 @@ This document explains how tmux-flash-copy handles clipboard operations across d
 
 - [Overview](#overview)
 - [Clipboard Methods (Priority Order)](#clipboard-methods-priority-order)
+- [Internal: IPC buffer](#internal-ipc-buffer)
   - [1. OSC52 via tmux (Primary Method)](#1-osc52-via-tmux-primary-method)
   - [2. Native System Clipboard Tools (Fallback)](#2-native-system-clipboard-tools-fallback)
   - [3. tmux Buffer (Last Resort)](#3-tmux-buffer-last-resort)
@@ -135,9 +136,9 @@ When OSC52 fails, the plugin falls back to platform-specific clipboard utilities
 
 ## Internal: IPC buffer
 
-### The `__tmux_flash_copy_result__` buffer
+### The `__tmux_flash_copy_result__%X__` buffer
 
-The plugin uses a special tmux buffer named `__tmux_flash_copy_result__` for internal communication between the parent process and the interactive popup UI.
+The plugin uses a special tmux buffer named `__tmux_flash_copy_result__%X__` (`%X` is the calling pane_id) for internal communication between the parent process and the interactive popup UI.
 
 **Purpose**: Inter-process communication (IPC)
 
