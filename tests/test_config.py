@@ -81,6 +81,30 @@ class TestConfigLoader:
         assert result == {}
 
     @patch("subprocess.run")
+    def test_read_all_global_options_subprocess_error(self, mock_run):
+        """Test batch reading global options with subprocess error."""
+        mock_run.side_effect = OSError("Subprocess failed")
+
+        result = ConfigLoader._read_all_global_options()
+
+        assert result == {}
+
+    @patch("subprocess.run")
+    def test_read_all_global_options_invalid_escape_fallback(self, mock_run):
+        """Test batch reading with invalid escape sequence falls back to strip quotes."""
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        # Invalid escape sequence that can't be decoded by ast.literal_eval
+        mock_result.stdout = r'@flash-copy-test "\x{invalid}"' + "\n"
+        mock_run.return_value = mock_result
+
+        result = ConfigLoader._read_all_global_options()
+
+        # Should fall back to just stripping quotes
+        assert "@flash-copy-test" in result
+        assert result["@flash-copy-test"] == r"\x{invalid}"
+
+    @patch("subprocess.run")
     def test_read_all_window_options_success(self, mock_run):
         """Test batch reading all window options."""
         mock_result = MagicMock()
@@ -105,6 +129,30 @@ class TestConfigLoader:
         result = ConfigLoader._read_all_window_options()
 
         assert result == {}
+
+    @patch("subprocess.run")
+    def test_read_all_window_options_subprocess_error(self, mock_run):
+        """Test batch reading window options with subprocess error."""
+        mock_run.side_effect = OSError("Subprocess failed")
+
+        result = ConfigLoader._read_all_window_options()
+
+        assert result == {}
+
+    @patch("subprocess.run")
+    def test_read_all_window_options_invalid_escape_fallback(self, mock_run):
+        """Test batch reading with invalid escape sequence falls back to strip quotes."""
+        mock_result = MagicMock()
+        mock_result.returncode = 0
+        # Invalid escape that can't be decoded by ast.literal_eval
+        mock_result.stdout = r'test-option "\x{invalid}"' + "\n"
+        mock_run.return_value = mock_result
+
+        result = ConfigLoader._read_all_window_options()
+
+        # Should fall back to just stripping quotes
+        assert "test-option" in result
+        assert result["test-option"] == r"\x{invalid}"
 
     @patch("subprocess.run")
     def test_read_tmux_option_success(self, mock_run):
@@ -332,6 +380,30 @@ class TestConfigLoader:
 
         assert result == -5
 
+    def test_read_tmux_option_with_cache(self):
+        """Test reading tmux option uses cache when available."""
+        # Populate cache
+        ConfigLoader._global_options_cache = {"@test-option": "cached_value"}
+
+        result = ConfigLoader._read_tmux_option("@test-option", default="default")
+
+        assert result == "cached_value"
+
+        # Clean up
+        ConfigLoader._global_options_cache = None
+
+    def test_read_tmux_window_option_with_cache(self):
+        """Test reading tmux window option uses cache when available."""
+        # Populate cache
+        ConfigLoader._window_options_cache = {"test-option": "cached_value"}
+
+        result = ConfigLoader._read_tmux_window_option("test-option", default="default")
+
+        assert result == "cached_value"
+
+        # Clean up
+        ConfigLoader._window_options_cache = None
+
     @patch("src.config.ConfigLoader._read_tmux_option")
     def test_get_word_separators_custom_override(self, mock_read):
         """Test getting word separators with custom override."""
@@ -424,6 +496,62 @@ class TestConfigLoader:
         # Should fall back to extracting between quotes
         # The backslash-quote becomes just a quote: invalid"
         assert result == 'invalid"'
+
+    @patch("src.config.ConfigLoader._read_tmux_window_option")
+    @patch("src.config.ConfigLoader._read_tmux_option")
+    def test_get_word_separators_empty_after_prefix(self, mock_read_option, mock_read_window):
+        """Test word-separators when value is empty after prefix."""
+        mock_read_option.return_value = ""
+        # Just the prefix with nothing after
+        mock_read_window.return_value = "word-separators"
+
+        result = ConfigLoader.get_word_separators(default="default_value")
+
+        assert result == "default_value"
+
+    @patch("src.config.ConfigLoader._read_tmux_window_option")
+    @patch("src.config.ConfigLoader._read_tmux_option")
+    def test_get_word_separators_space_only_after_prefix(self, mock_read_option, mock_read_window):
+        """Test word-separators when only space after prefix."""
+        mock_read_option.return_value = ""
+        # Prefix with space but empty value
+        mock_read_window.return_value = "word-separators "
+
+        result = ConfigLoader.get_word_separators(default="default_value")
+
+        assert result == "default_value"
+
+    @patch("src.config.ConfigLoader._read_tmux_window_option")
+    @patch("src.config.ConfigLoader._read_tmux_option")
+    def test_get_word_separators_already_decoded(self, mock_read_option, mock_read_window):
+        """Test word-separators when value is already decoded (from cache)."""
+        mock_read_option.return_value = ""
+        # Already decoded value (no quotes)
+        mock_read_window.return_value = " -_"
+
+        result = ConfigLoader.get_word_separators()
+
+        assert result == " -_"
+
+    @patch("subprocess.run")
+    def test_load_all_flash_copy_config_word_sep_subprocess_error(self, mock_run):
+        """Test load_all_flash_copy_config handles subprocess error when reading word-separators."""
+        # First two calls succeed (global and window options)
+        # Third call fails (word-separators individual read)
+        mock_result_success = MagicMock()
+        mock_result_success.returncode = 0
+        mock_result_success.stdout = ""
+
+        mock_run.side_effect = [
+            mock_result_success,  # global options
+            mock_result_success,  # window options
+            OSError("Subprocess failed"),  # word-separators read
+        ]
+
+        # Should not raise, should use default
+        config = ConfigLoader.load_all_flash_copy_config()
+
+        assert config is not None
 
     @patch("src.config.ConfigLoader._read_all_window_options")
     @patch("src.config.ConfigLoader._read_all_global_options")

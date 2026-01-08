@@ -103,9 +103,11 @@ class PopupUI:
         # Write pane content to tmux buffer for child process to read
         # This avoids redundant pane capture in the interactive script
         # If buffer write fails, child will fall back to capturing pane
+        # Use pane_id in buffer name to avoid conflicts with concurrent instances
+        pane_content_buffer = f"__tmux_flash_copy_pane_content_{self.pane_id}__"
         with contextlib.suppress(subprocess.SubprocessError, OSError):
             subprocess.run(
-                ["tmux", "set-buffer", "-b", "__tmux_flash_copy_pane_content__", self.pane_content],
+                ["tmux", "set-buffer", "-b", pane_content_buffer, self.pane_content],
                 check=True,
                 timeout=5,
             )
@@ -181,13 +183,14 @@ class PopupUI:
             should_paste = result.returncode == 10
 
             # Read result from tmux buffer (written by child process)
-            # Using unique buffer name to avoid conflicts
+            # Using pane-specific buffer names to avoid conflicts
+            result_buffer = f"__tmux_flash_copy_result_{self.pane_id}__"
             try:
                 if logger.enabled:
                     logger.log("Reading result from tmux buffer...")
 
                 buffer_result = subprocess.run(
-                    ["tmux", "show-buffer", "-b", "__tmux_flash_copy_result__"],
+                    ["tmux", "show-buffer", "-b", result_buffer],
                     capture_output=True,
                     text=True,
                     check=True,
@@ -202,14 +205,14 @@ class PopupUI:
 
                 # Clean up the result buffer after reading
                 subprocess.run(
-                    ["tmux", "delete-buffer", "-b", "__tmux_flash_copy_result__"],
+                    ["tmux", "delete-buffer", "-b", result_buffer],
                     capture_output=True,
                     check=False,
                 )
 
                 # Clean up the pane content buffer
                 subprocess.run(
-                    ["tmux", "delete-buffer", "-b", "__tmux_flash_copy_pane_content__"],
+                    ["tmux", "delete-buffer", "-b", pane_content_buffer],
                     capture_output=True,
                     check=False,
                 )
@@ -239,7 +242,7 @@ class PopupUI:
                 logger.log("Popup timeout expired")
             # Clean up pane content buffer
             subprocess.run(
-                ["tmux", "delete-buffer", "-b", "__tmux_flash_copy_pane_content__"],
+                ["tmux", "delete-buffer", "-b", pane_content_buffer],
                 capture_output=True,
                 check=False,
             )
@@ -249,7 +252,7 @@ class PopupUI:
                 logger.log(f"Exception in _launch_popup: {e}")
             # Clean up pane content buffer
             subprocess.run(
-                ["tmux", "delete-buffer", "-b", "__tmux_flash_copy_pane_content__"],
+                ["tmux", "delete-buffer", "-b", pane_content_buffer],
                 capture_output=True,
                 check=False,
             )

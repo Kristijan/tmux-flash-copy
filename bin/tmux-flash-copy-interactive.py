@@ -686,14 +686,15 @@ class InteractiveUI:
         logger = DebugLogger.get_instance()
 
         # Store result in a tmux buffer for parent to read
-        # Using a unique buffer name to avoid conflicts with user buffers
+        # Use pane-specific buffer name to avoid conflicts with concurrent instances
+        result_buffer = f"__tmux_flash_copy_result_{self.pane_id}__"
         try:
             if logger.enabled:
                 logger.log(f"Writing result to tmux buffer (length: {len(text)})")
                 logger.log(f"Auto-paste: {should_paste}")
 
             result = subprocess.run(
-                ["tmux", "set-buffer", "-b", "__tmux_flash_copy_result__", text],
+                ["tmux", "set-buffer", "-b", result_buffer, text],
                 check=True,
                 capture_output=True,
             )
@@ -759,10 +760,12 @@ def main():
 
     try:
         # Try to read pane content from buffer first (optimization to avoid redundant capture)
+        # Use pane-specific buffer name to avoid conflicts with concurrent instances
         pane_content = None
+        pane_content_buffer = f"__tmux_flash_copy_pane_content_{args.pane_id}__"
         try:
             buffer_result = subprocess.run(
-                ["tmux", "show-buffer", "-b", "__tmux_flash_copy_pane_content__"],
+                ["tmux", "show-buffer", "-b", pane_content_buffer],
                 capture_output=True,
                 text=True,
                 check=True,
