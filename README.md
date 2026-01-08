@@ -140,6 +140,8 @@ The following configuration options are supported. Default values are listed, wi
 | [`@flash-copy-prompt-indicator`](#flash-copy-prompt-indicator-default-)                                     | Customises the prompt indicator                            |
 | [`@flash-copy-prompt-colour`](#flash-copy-prompt-colour-default-0331m---bold)                               | Customises the prompt indicator colour                     |
 | [`@flash-copy-prompt-placeholder-text`](#flash-copy-prompt-placeholder-text-default-search)                 | Customises prompt placeholder text                         |
+| [`@flash-copy-idle-timeout`](#flash-copy-idle-timeout-default-15)                                           | Idle timeout in seconds before auto-exit                   |
+| [`@flash-copy-idle-warning`](#flash-copy-idle-warning-default-5)                                            | Seconds before timeout to show warning in prompt           |
 
 #### Matched text and labels
 
@@ -286,6 +288,44 @@ set -g @flash-copy-prompt-placeholder-text "Type to search..."
 # Disable placeholder text
 set -g @flash-copy-prompt-placeholder-text ""
 ```
+
+#### `@flash-copy-idle-timeout` (default: `15`)
+
+Controls the idle timeout in seconds before the popup automatically exits.
+
+- Default: `15` seconds
+- Minimum: `1` second (values less than 1 are ignored)
+- Set to a higher value if you need more time to make your selection
+
+When no user input is detected for the specified duration, tmux-flash-copy will automatically exit to prevent indefinitely blocking the terminal.
+
+```bash
+# Extend idle timeout to 30 seconds
+set -g @flash-copy-idle-timeout "30"
+```
+
+#### `@flash-copy-idle-warning` (default: `5`)
+
+Controls when the idle timeout warning appears, specified as seconds BEFORE the timeout.
+
+- Default: `5` seconds (warning appears 5 seconds before timeout)
+- Must be less than `@flash-copy-idle-timeout` for a warning to appear
+- If set equal to or greater than `@flash-copy-idle-timeout`, no warning will be displayed
+
+```bash
+# Show warning 10 seconds before timeout (at 20s if timeout=30s)
+set -g @flash-copy-idle-timeout "30"
+set -g @flash-copy-idle-warning "10"
+
+# Show warning very late, only 2 seconds before timeout
+set -g @flash-copy-idle-warning "2"
+
+# Disable warning by setting equal to timeout
+set -g @flash-copy-idle-timeout "15"
+set -g @flash-copy-idle-warning "15"  # No warning will appear
+```
+
+**Note**: Any keypress resets the idle timer back to zero, so actively searching or typing will prevent timeout.
 
 #### `@flash-copy-label-characters` (default: `asdfghjklqwertyuiopzxcvbnmASDFGHJKLQWERTYUIOPZXCVBNM`)
 

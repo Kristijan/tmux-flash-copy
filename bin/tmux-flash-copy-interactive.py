@@ -7,11 +7,14 @@ and handling user input for label selection.
 """
 
 import argparse
+import math
 import os
+import select
 import shutil
 import subprocess
 import sys
 import termios
+import time
 import tty
 from pathlib import Path
 from typing import Optional
@@ -26,6 +29,11 @@ from src.config import FlashCopyConfig  # noqa: E402
 from src.debug_logger import DebugLogger  # noqa: E402
 from src.pane_capture import PaneCapture  # noqa: E402
 from src.search_interface import SearchInterface  # noqa: E402
+
+# Idle timeout defaults (configurable via @flash-copy-idle-timeout and @flash-copy-idle-warning)
+# These are kept as constants for backwards compatibility and fallback
+DEFAULT_IDLE_TIMEOUT_SECONDS = 15
+DEFAULT_IDLE_WARNING_SECONDS = 5
 
 
 class InteractiveUI:
@@ -66,6 +74,9 @@ class InteractiveUI:
         self.current_matches = []
         self.autopaste_modifier_active = False
         self.last_logged_modifier = None  # Track last logged modifier state to avoid repetition
+        # Timeout tracking
+        self.start_time: float = 0.0
+        self.timeout_warning_shown = False
         # Initialize debug logger if enabled
         self.debug_logger = (
             DebugLogger.get_instance()
@@ -110,15 +121,21 @@ class InteractiveUI:
         """
         Read a single character or escape sequence from stdin without waiting for Enter.
 
+        Uses select() with a short timeout to avoid blocking, allowing the main loop
+        to check for idle timeout periodically.
+
         Returns:
-            The character or special value read, or empty string on EOF
+            The character or special value read, empty string if no input available
         """
         try:
             fd = sys.stdin.fileno()
+
             # Check if stdin is a TTY before attempting to set raw mode
             if not os.isatty(fd):
-                # If not a TTY (e.g., in a tmux popup), read one character directly
-                # This will block until input is available
+                # If not a TTY (e.g., in a tmux popup), use select and read directly
+                readable, _, _ = select.select([sys.stdin], [], [], 0.1)
+                if not readable:
+                    return ""
                 char = sys.stdin.read(1)
                 if not char:  # EOF
                     return ControlChars.CTRL_C  # Treat EOF as Ctrl+C
@@ -127,9 +144,18 @@ class InteractiveUI:
                     return self._handle_escape_sequence()
                 return char
 
+            # For TTY, set raw mode first, then use select
             old_settings = termios.tcgetattr(fd)
             try:
                 tty.setraw(fd)
+                # Use select to check if input is available (0.1 second timeout)
+                # This allows us to return to the main loop to check idle timeout
+                readable, _, _ = select.select([fd], [], [], 0.1)
+
+                if not readable:
+                    # No input available, return empty string to continue loop
+                    return ""
+
                 char = sys.stdin.read(1)
                 if not char:  # EOF
                     return ControlChars.CTRL_C  # Treat EOF as Ctrl+C
@@ -208,15 +234,31 @@ class InteractiveUI:
                 f"{self.config.prompt_colour}{self.config.prompt_indicator}{AnsiStyles.RESET} "
             )
 
-        # Add debug indicator if enabled (right-aligned)
-        if self.debug_logger and self.debug_logger.enabled:
-            try:
-                term_width = shutil.get_terminal_size().columns
-            except OSError:
-                term_width = 80
+        # Try to get terminal width for right-aligned indicators
+        try:
+            term_width = shutil.get_terminal_size().columns
+        except OSError:
+            term_width = 80
 
+        base_visible_len = AnsiUtils.get_visible_length(base_output)
+
+        # Add timeout warning if active (takes priority over debug indicator)
+        if self.timeout_warning_shown:
+            elapsed = time.time() - self.start_time
+            remaining = math.ceil(self.config.idle_timeout - elapsed)
+            warning_text = f"Idle, terminating in {remaining}s..."
+            warning_visible_len = len(warning_text)
+
+            # Only add if there's enough space
+            if base_visible_len + warning_visible_len + 3 < term_width:
+                padding = term_width - base_visible_len - warning_visible_len - 1
+                base_output += (
+                    " " * padding + f"{AnsiStyles.BOLD}\033[33m{warning_text}{AnsiStyles.RESET}"
+                )
+
+        # Add debug indicator if enabled and no timeout warning (right-aligned)
+        elif self.debug_logger and self.debug_logger.enabled:
             debug_text = "!! DEBUG ON !!"
-            base_visible_len = AnsiUtils.get_visible_length(base_output)
             debug_visible_len = len(debug_text)
 
             # Only add if there's enough space (at least 3 chars padding between prompt and debug text)
@@ -471,9 +513,38 @@ class InteractiveUI:
             The selected text if a match was chosen, None if cancelled
         """
         try:
+            # Track start time for idle timeout
+            self.start_time = time.time()
+
             self._display_content()
 
             while True:
+                # Check for idle timeout
+                elapsed = time.time() - self.start_time
+
+                if elapsed >= self.config.idle_timeout:
+                    # Timeout exceeded - exit gracefully
+                    if self.debug_logger and self.debug_logger.enabled:
+                        self.debug_logger.log(
+                            f"Idle timeout ({self.config.idle_timeout}s) - auto-exiting"
+                        )
+                    self._save_result("", should_paste=False)
+                    return None
+
+                # Calculate warning threshold (show warning X seconds before timeout)
+                # Only show warning if idle_warning < idle_timeout
+                warning_threshold = self.config.idle_timeout - self.config.idle_warning
+                if (
+                    elapsed >= warning_threshold
+                    and not self.timeout_warning_shown
+                    and self.config.idle_warning < self.config.idle_timeout
+                ):
+                    # Show warning message
+                    self.timeout_warning_shown = True
+                    if self.debug_logger and self.debug_logger.enabled:
+                        self.debug_logger.log("Showing idle timeout warning")
+                    self._display_content()
+
                 try:
                     char = self._get_single_char()
                 except Exception as e:
@@ -486,6 +557,10 @@ class InteractiveUI:
                 # Ignore empty characters (escape sequences we want to skip)
                 if char == "":
                     continue
+
+                # User provided input - reset idle timeout
+                self.start_time = time.time()
+                self.timeout_warning_shown = False
 
                 # Handle control characters
                 if char == ControlChars.CTRL_C:
@@ -657,6 +732,16 @@ def main():
         default="",
         help="Custom label characters to use for match labels (overrides default)",
     )
+    parser.add_argument(
+        "--idle-timeout",
+        default="15",
+        help="Idle timeout in seconds before auto-exit",
+    )
+    parser.add_argument(
+        "--idle-warning",
+        default="5",
+        help="Seconds before timeout to show warning",
+    )
 
     args = parser.parse_args()
 
@@ -682,6 +767,8 @@ def main():
             debug_enabled=args.debug_enabled.lower() in ("true", "1", "yes", "on"),
             auto_paste_enable=args.auto_paste.lower() in ("true", "1", "yes", "on"),
             label_characters=args.label_characters if args.label_characters else None,
+            idle_timeout=int(args.idle_timeout),
+            idle_warning=int(args.idle_warning),
         )
 
         # Initialize debug logger if enabled

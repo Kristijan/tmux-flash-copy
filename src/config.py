@@ -26,6 +26,8 @@ class FlashCopyConfig:
     debug_enabled: bool = False
     auto_paste_enable: bool = True
     label_characters: Optional[str] = None
+    idle_timeout: int = 15
+    idle_warning: int = 5
 
 
 class ConfigLoader:
@@ -165,6 +167,26 @@ class ConfigLoader:
         return result if result else default
 
     @staticmethod
+    def get_int(option_name: str, default: int = 0) -> int:
+        """
+        Get an integer configuration option.
+
+        Args:
+            option_name: The tmux option name
+            default: Default value if option doesn't exist or is invalid
+
+        Returns:
+            Integer value of the option, or default if invalid/missing
+        """
+        value = ConfigLoader._read_tmux_option(option_name, "")
+        if not value:
+            return default
+        try:
+            return int(value)
+        except ValueError:
+            return default
+
+    @staticmethod
     def get_word_separators(default: Optional[str] = None) -> Optional[str]:
         """
         Get word separators setting, with priority order.
@@ -246,4 +268,6 @@ class ConfigLoader:
             label_characters=(
                 ConfigLoader.get_string("@flash-copy-label-characters", default="") or None
             ),
+            idle_timeout=ConfigLoader.get_int("@flash-copy-idle-timeout", default=15),
+            idle_warning=ConfigLoader.get_int("@flash-copy-idle-warning", default=5),
         )

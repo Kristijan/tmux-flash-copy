@@ -145,17 +145,22 @@ class PopupUI:
             self.config.label_characters or "",
             "--auto-paste",
             "true" if self.config.auto_paste_enable else "false",
+            "--idle-timeout",
+            str(self.config.idle_timeout),
+            "--idle-warning",
+            str(self.config.idle_warning),
         ]
 
         logger = DebugLogger.get_instance()
 
         try:
             # Run the popup command - it will close automatically with -E flag when script exits
-            # Long timeout (5 minutes) to allow users time to search and select text
+            # Timeout slightly longer than child's idle timeout (35s vs 30s child timeout)
+            # to allow child to exit gracefully before parent kills it
             result = subprocess.run(
                 popup_cmd,
                 check=False,
-                timeout=300.0,
+                timeout=35.0,
             )
 
             if logger.enabled:
@@ -200,7 +205,9 @@ class PopupUI:
             # None means no output or buffer not found
             if result_text is not None and result_text != "":
                 if logger.enabled:
-                    logger.log(f"Returning result to parent: '{result_text[:50]}...' (paste={should_paste})")
+                    logger.log(
+                        f"Returning result to parent: '{result_text[:50]}...' (paste={should_paste})"
+                    )
                 # Return tuple of (text, should_paste)
                 return (result_text, should_paste)
 
