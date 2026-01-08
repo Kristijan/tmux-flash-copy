@@ -49,6 +49,15 @@ class SearchInterface:
     # Cache compiled regex patterns
     _pattern_cache: dict[Optional[str], re.Pattern] = {}
 
+    @staticmethod
+    def _escape_for_char_class(s: str) -> str:
+        """Escape special characters for use in regex character class."""
+        s = s.replace("\\", "\\\\")
+        s = s.replace("]", "\\]")
+        if s.startswith("^"):
+            s = "^" + s[1:].replace("^", "\\^")
+        return s
+
     def __init__(
         self,
         pane_content: str,
@@ -95,15 +104,7 @@ class SearchInterface:
 
         # Compile new pattern
         if word_separators:
-            # Escape for character class
-            def escape_for_char_class(s):
-                s = s.replace("\\", "\\\\")
-                s = s.replace("]", "\\]")
-                if s.startswith("^"):
-                    s = "^" + s[1:].replace("^", "\\^")
-                return s
-
-            escaped = escape_for_char_class(word_separators)
+            escaped = cls._escape_for_char_class(word_separators)
             pattern = re.compile(f"[^{escaped}]+")
         else:
             pattern = re.compile(r"\S+")
@@ -113,87 +114,51 @@ class SearchInterface:
         return pattern
 
     def _build_word_index(self):
-        """Build an index of all words in the pane content.
+        """Build an index of all non-whitespace sequences in the pane content.
 
-        Creates extended matches that include leading separator characters
-        for searching, while preserving the actual word for copying.
+        Per CLAUDE.md: Word separators only apply to what is copied, not searching.
+        We match all non-whitespace sequences for searching, and extract the word
+        part (using separators) for copying.
         """
         self.word_index: dict[str, list[SearchMatch]] = defaultdict(list)
 
-        # Get cached or compile word pattern
-        word_pattern = self._get_word_pattern(self.word_separators)
+        # Always match non-whitespace sequences for searching
+        sequence_pattern = re.compile(r"\S+")
 
-        # Compile separator pattern if we have custom separators
-        # We want to capture non-whitespace separators only
+        # Compile word pattern for extracting copy text
         if self.word_separators:
-
-            def escape_for_char_class(s):
-                s = s.replace("\\", "\\\\")
-                s = s.replace("]", "\\]")
-                if s.startswith("^"):
-                    s = "^" + s[1:].replace("^", "\\^")
-                return s
-
-            # Create pattern that matches non-whitespace characters from the separator set
-            # This allows us to capture separators like #, @, {, } but not spaces
-            non_ws_seps = "".join(c for c in self.word_separators if not c.isspace())
-            if non_ws_seps:
-                escaped_non_ws = escape_for_char_class(non_ws_seps)
-                separator_pattern = re.compile(f"[{escaped_non_ws}]+")
-            else:
-                # If all separators are whitespace, don't capture any leading separators
-                separator_pattern = None
+            escaped = self._escape_for_char_class(self.word_separators)
+            word_pattern = re.compile(f"[^{escaped}]+")
         else:
-            # Default: no leading separators (to maintain backward compatibility)
-            separator_pattern = None
+            word_pattern = None
 
         pos = 0
         for line_idx, line in enumerate(self.lines):
-            # Split by word boundaries but capture the words
-            for match in word_pattern.finditer(line):
-                word = match.group()
-                word_start = match.start()
-                word_end = match.end()
+            # Find all non-whitespace sequences
+            for match in sequence_pattern.finditer(line):
+                sequence = match.group()
+                sequence_start = match.start()
+                sequence_end = match.end()
 
-                # Capture leading non-whitespace separators (look backward from word_start)
-                leading_sep = ""
-                extended_start = word_start
-                if separator_pattern and word_start > 0:
-                    # Look backward to find leading non-whitespace separators
-                    before_text = line[:word_start]
-                    # Find the last separator match before the word
-                    sep_match = None
-                    for match_obj in separator_pattern.finditer(before_text):
-                        sep_match = match_obj  # Keep the last match
-                    if sep_match and sep_match.end() == word_start:
-                        # There are separators immediately before the word
-                        leading_sep = sep_match.group()
-                        extended_start = sep_match.start()
-
-                # Capture trailing non-whitespace separators (look forward from word_end)
-                trailing_sep = ""
-                if separator_pattern and word_end < len(line):
-                    # Look forward to find trailing non-whitespace separators
-                    after_text = line[word_end:]
-                    # Check if there are separators immediately after the word
-                    sep_match = separator_pattern.match(after_text)
-                    if sep_match and sep_match.start() == 0:
-                        # There are separators immediately after the word
-                        trailing_sep = sep_match.group()
-
-                # Create extended text with leading and trailing separators
-                extended_text = leading_sep + word + trailing_sep
+                # Extract the word to copy from this sequence using separators
+                copy_text: str = sequence  # Default to full sequence
+                if word_pattern:
+                    # Find all words within the sequence
+                    words = word_pattern.findall(sequence)
+                    if words:
+                        # Use the longest word as copy text
+                        copy_text = str(max(words, key=len))
 
                 search_match = SearchMatch(
-                    text=extended_text,
-                    start_pos=pos + extended_start,
-                    end_pos=pos + word_end,
+                    text=sequence,
+                    start_pos=pos + sequence_start,
+                    end_pos=pos + sequence_end,
                     line=line_idx,
-                    col=extended_start,
-                    copy_text=word,  # The actual word without separators
+                    col=sequence_start,
+                    copy_text=copy_text,
                 )
-                # Use the extended text as-is if case-sensitive, or lowercase if case-insensitive
-                index_key = extended_text if self.case_sensitive else extended_text.lower()
+                # Use the sequence for indexing (case-sensitive or lowercase)
+                index_key = sequence if self.case_sensitive else sequence.lower()
                 self.word_index[index_key].append(search_match)
 
             pos += len(line) + 1  # +1 for newline
@@ -202,8 +167,8 @@ class SearchInterface:
         """
         Search for words matching the query.
 
-        Matches words that contain the query string anywhere within them,
-        not just at the start. This enables dynamic multi-character search.
+        Finds all occurrences of the query string, potentially multiple times
+        within the same sequence. For each occurrence, determines the word to copy.
 
         Args:
             query: The search query (can be partial)
@@ -222,36 +187,74 @@ class SearchInterface:
         # Use the query as-is if case-sensitive, or lowercase if case-insensitive
         search_query = query if self.case_sensitive else query.lower()
 
-        # Find all words that contain the query
-        for word, matches_list_from_index in self.word_index.items():
-            # Match words that contain the query (anywhere in the word)
-            if search_query in word:
-                for match in matches_list_from_index:
-                    # Find the position of the query within the word
-                    if self.case_sensitive:
-                        match_pos = match.text.find(search_query)
-                    else:
-                        match_pos = match.text.lower().find(search_query)
+        # Compile word pattern for extracting copy text
+        if self.word_separators:
+            escaped = self._escape_for_char_class(self.word_separators)
+            word_pattern = re.compile(f"[^{escaped}]+")
+        else:
+            word_pattern = None
 
-                    if match_pos >= 0:
-                        # Create a new match object with match position info
+        # Find all sequences that contain the query
+        for sequence_key, matches_from_index in self.word_index.items():
+            # Check if this sequence contains the query
+            if search_query in sequence_key:
+                for sequence_match in matches_from_index:
+                    # Find ALL occurrences of the query in this sequence
+                    search_text = (
+                        sequence_match.text if self.case_sensitive else sequence_match.text.lower()
+                    )
+                    match_pos = 0
+                    while True:
+                        match_pos = search_text.find(search_query, match_pos)
+                        if match_pos < 0:
+                            break
+
+                        # Determine which word to copy for this match occurrence
+                        copy_text: str = sequence_match.text  # Default to full sequence
+                        if word_pattern:
+                            # Find the word that contains or follows this match
+                            best_word: Optional[str] = None
+                            for word_match in word_pattern.finditer(sequence_match.text):
+                                word_start = word_match.start()
+                                word_end = word_match.end()
+                                # Check if match falls within this word
+                                if (
+                                    word_start <= match_pos < word_end
+                                    or word_start > match_pos
+                                    and best_word is None
+                                ):
+                                    best_word = word_match.group()
+                                    break
+
+                            if best_word:
+                                copy_text = best_word
+                            else:
+                                # No word found, use the longest word in sequence
+                                words = word_pattern.findall(sequence_match.text)
+                                if words:
+                                    copy_text = str(max(words, key=len))
+
+                        # Create a new match object for this occurrence
                         new_match = SearchMatch(
-                            text=match.text,
-                            start_pos=match.start_pos,
-                            end_pos=match.end_pos,
-                            line=match.line,
-                            col=match.col,
-                            copy_text=match.copy_text,  # Preserve the copyable word
+                            text=sequence_match.text,
+                            start_pos=sequence_match.start_pos,
+                            end_pos=sequence_match.end_pos,
+                            line=sequence_match.line,
+                            col=sequence_match.col,
+                            copy_text=copy_text,
                         )
                         new_match.match_start = match_pos
                         new_match.match_end = match_pos + len(search_query)
                         matches_list.append(new_match)
 
+                        # Move to next position
+                        match_pos += 1
+
         # Remove duplicates while preserving order
         seen = set()
         unique_matches = []
         for match in matches_list:
-            key = (match.start_pos, match.text)
+            key = (match.start_pos, match.match_start, match.text)
             if key not in seen:
                 seen.add(key)
                 unique_matches.append(match)

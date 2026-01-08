@@ -25,7 +25,7 @@ sys.path.insert(0, str(PLUGIN_DIR))
 
 from src.ansi_utils import AnsiStyles, AnsiUtils, ControlChars, TerminalSequences  # noqa: E402
 from src.clipboard import Clipboard  # noqa: E402
-from src.config import FlashCopyConfig  # noqa: E402
+from src.config import ConfigLoader, FlashCopyConfig  # noqa: E402
 from src.debug_logger import DebugLogger  # noqa: E402
 from src.pane_capture import PaneCapture  # noqa: E402
 from src.search_interface import SearchInterface  # noqa: E402
@@ -199,16 +199,22 @@ class InteractiveUI:
         """Apply dimming to a line with ANSI colour codes.
 
         Reapplies dimming after each colour reset to darken coloured content.
+        Uses list accumulation for better performance.
         """
-        # After each reset code, reapply the dim code
-        dimmed = line.replace(AnsiStyles.RESET, AnsiStyles.RESET + AnsiStyles.DIM)
-        # Start with dim at the beginning
-        if not dimmed.startswith(AnsiStyles.DIM):
-            dimmed = AnsiStyles.DIM + dimmed
+        parts = []
+
+        # Start with dim if not already dimmed
+        if not line.startswith(AnsiStyles.DIM):
+            parts.append(AnsiStyles.DIM)
+
+        # Replace RESET with RESET+DIM to maintain dimming through the line
+        parts.append(line.replace(AnsiStyles.RESET, AnsiStyles.RESET + AnsiStyles.DIM))
+
         # Ensure it ends with reset
-        if not dimmed.endswith(AnsiStyles.RESET):
-            dimmed = dimmed + AnsiStyles.RESET
-        return dimmed
+        if not line.endswith(AnsiStyles.RESET):
+            parts.append(AnsiStyles.RESET)
+
+        return "".join(parts)
 
     def _build_search_bar_output(self) -> str:
         """
@@ -290,6 +296,22 @@ class InteractiveUI:
         """
         matches_on_line = self.search_interface.get_matches_at_line(line_idx)
 
+        # Position cache to avoid redundant calculations
+        # Maps (line_id, plain_pos) -> coloured_pos where line_id changes when display_line changes
+        position_cache: dict[tuple[int, int], int] = {}
+        cache_line_id = 0
+
+        def get_coloured_pos(line: str, plain_pos: int, use_cache: bool = True) -> int:
+            """Get coloured position with caching."""
+            if use_cache:
+                cache_key = (cache_line_id, plain_pos)
+                if cache_key in position_cache:
+                    return position_cache[cache_key]
+            result = AnsiUtils.map_position_to_coloured(line, plain_pos)
+            if use_cache:
+                position_cache[(cache_line_id, plain_pos)] = result
+            return result
+
         # Process matches from right to left to maintain position accuracy
         for match in sorted(matches_on_line, key=lambda m: m.col, reverse=True):
             if not match.label:
@@ -300,11 +322,9 @@ class InteractiveUI:
             match_start_in_word = match.match_start
             match_end_in_word = match.match_end
 
-            # Find positions in coloured line using AnsiUtils
-            coloured_word_start = AnsiUtils.map_position_to_coloured(display_line, word_start)
-            coloured_match_start_in_word = AnsiUtils.map_position_to_coloured(
-                display_line[coloured_word_start:], match_start_in_word
-            )
+            # Calculate plain positions of match start and end in the line
+            plain_match_start = word_start + match_start_in_word
+            plain_match_end = word_start + match_end_in_word
 
             # We'll place the label by replacing (or inserting) the single plain
             # character immediately after the matched substring, then apply
@@ -315,16 +335,14 @@ class InteractiveUI:
 
             # Compute the plain index of the character to replace (immediately
             # after the matched substring)
-            plain_replace_index = word_start + match_end_in_word
+            plain_replace_index = plain_match_end
 
             # Insert or replace the single plain character with the coloured label
             if plain_replace_index < len(line_plain):
-                coloured_replace_start = AnsiUtils.map_position_to_coloured(
-                    display_line, plain_replace_index
-                )
+                coloured_replace_start = get_coloured_pos(display_line, plain_replace_index)
                 # How many bytes in the coloured string correspond to one plain char
-                coloured_skip_len = AnsiUtils.map_position_to_coloured(
-                    display_line[coloured_replace_start:], 1
+                coloured_skip_len = get_coloured_pos(
+                    display_line[coloured_replace_start:], 1, use_cache=False
                 )
                 # Replace that single plain character with the coloured label
                 coloured_label = f"{self.config.label_colour}{match.label}{AnsiStyles.RESET}"
@@ -335,9 +353,7 @@ class InteractiveUI:
                 )
             else:
                 # No character to replace (end of line) — insert label after match
-                coloured_insert_pos = AnsiUtils.map_position_to_coloured(
-                    display_line, plain_replace_index
-                )
+                coloured_insert_pos = get_coloured_pos(display_line, plain_replace_index)
                 coloured_label = f"{self.config.label_colour}{match.label}{AnsiStyles.RESET}"
                 display_line = (
                     display_line[:coloured_insert_pos]
@@ -345,21 +361,18 @@ class InteractiveUI:
                     + display_line[coloured_insert_pos:]
                 )
 
+            # Invalidate cache after modifying display_line
+            cache_line_id += 1
+
             # Recompute coloured positions after the label insertion/replacement
-            coloured_word_start = AnsiUtils.map_position_to_coloured(display_line, word_start)
-            coloured_match_start_in_word = AnsiUtils.map_position_to_coloured(
-                display_line[coloured_word_start:], match_start_in_word
-            )
-            coloured_match_start_abs = coloured_word_start + coloured_match_start_in_word
+            coloured_match_start = get_coloured_pos(display_line, plain_match_start)
+            coloured_match_end = get_coloured_pos(display_line, plain_match_end)
             # Use plain text for matched part to avoid colour code conflicts
             plain_matched_part = match.text[match_start_in_word:match_end_in_word]
-            coloured_match_end = AnsiUtils.map_position_to_coloured(
-                display_line, word_start + match_end_in_word
-            )
 
             # Wrap the matched substring with highlight colour (do not add label
             # here; we've already inserted/replaced it above)
-            before_match = display_line[:coloured_match_start_abs]
+            before_match = display_line[:coloured_match_start]
             after_matched = display_line[coloured_match_end:]
             highlighted = f"{AnsiStyles.RESET}{self.config.highlight_colour}{plain_matched_part}{AnsiStyles.RESET}"
             display_line = before_match + highlighted + after_matched
@@ -378,7 +391,7 @@ class InteractiveUI:
         content_lines_printed = 0
         total_lines = min(len(lines), available_height)
 
-        for line_idx, (line, _line_plain) in enumerate(zip(lines, lines_plain)):
+        for line_idx, (line, line_plain) in enumerate(zip(lines, lines_plain)):
             # Stop if we've filled available height
             if content_lines_printed >= available_height:
                 break
@@ -403,8 +416,7 @@ class InteractiveUI:
             dimmed_line = self._dim_coloured_line(line) if self.search_query else line
             # Pass the plain (ANSI-stripped) version of the line so we can inspect
             # plain characters (e.g. to detect a following space to overwrite).
-            plain_line = lines_plain[line_idx]
-            display_line = self._display_line_with_matches(dimmed_line, line_idx, plain_line)
+            display_line = self._display_line_with_matches(dimmed_line, line_idx, line_plain)
 
             # Skip newline on last line to prevent blank line before search bar
             if is_last_line:
@@ -674,14 +686,15 @@ class InteractiveUI:
         logger = DebugLogger.get_instance()
 
         # Store result in a tmux buffer for parent to read
-        # Using a unique buffer name to avoid conflicts with user buffers
+        # Use pane-specific buffer name to avoid conflicts with concurrent instances
+        result_buffer = f"__tmux_flash_copy_result_{self.pane_id}__"
         try:
             if logger.enabled:
                 logger.log(f"Writing result to tmux buffer (length: {len(text)})")
                 logger.log(f"Auto-paste: {should_paste}")
 
             result = subprocess.run(
-                ["tmux", "set-buffer", "-b", "__tmux_flash_copy_result__", text],
+                ["tmux", "set-buffer", "-b", result_buffer, text],
                 check=True,
                 capture_output=True,
             )
@@ -746,17 +759,35 @@ def main():
     args = parser.parse_args()
 
     try:
-        # Get pane content by capturing
+        # Try to read pane content from buffer first (optimization to avoid redundant capture)
+        # Use pane-specific buffer name to avoid conflicts with concurrent instances
+        pane_content = None
+        pane_content_buffer = f"__tmux_flash_copy_pane_content_{args.pane_id}__"
+        try:
+            buffer_result = subprocess.run(
+                ["tmux", "show-buffer", "-b", pane_content_buffer],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=5,
+            )
+            if buffer_result.returncode == 0 and buffer_result.stdout:
+                pane_content = buffer_result.stdout
+        except (subprocess.SubprocessError, OSError):
+            pass
+
+        # Fall back to capturing if buffer read failed
         capture = PaneCapture(args.pane_id)
-        pane_content = capture.capture_pane()
+        if pane_content is None:
+            pane_content = capture.capture_pane()
 
         # Get pane dimensions
         dimensions = capture.get_pane_dimensions()
 
         # Reconstruct FlashCopyConfig from command line arguments
         config = FlashCopyConfig(
-            reverse_search=args.reverse_search.lower() in ("true", "1", "yes", "on"),
-            case_sensitive=args.case_sensitive.lower() in ("true", "1", "yes", "on"),
+            reverse_search=ConfigLoader.parse_bool(args.reverse_search),
+            case_sensitive=ConfigLoader.parse_bool(args.case_sensitive),
             word_separators=args.word_separators if args.word_separators else None,
             prompt_placeholder_text=args.prompt_placeholder_text,
             highlight_colour=args.highlight_colour,
@@ -764,8 +795,8 @@ def main():
             prompt_position=args.prompt_position,
             prompt_indicator=args.prompt_indicator,
             prompt_colour=args.prompt_colour,
-            debug_enabled=args.debug_enabled.lower() in ("true", "1", "yes", "on"),
-            auto_paste_enable=args.auto_paste.lower() in ("true", "1", "yes", "on"),
+            debug_enabled=ConfigLoader.parse_bool(args.debug_enabled),
+            auto_paste_enable=ConfigLoader.parse_bool(args.auto_paste),
             label_characters=args.label_characters if args.label_characters else None,
             idle_timeout=int(args.idle_timeout),
             idle_warning=int(args.idle_warning),

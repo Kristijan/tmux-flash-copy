@@ -140,14 +140,13 @@ class TestSearchInterface:
 
         matches = search.search("bar")
 
-        # With " -" as separators, underscores are not separators
-        # so "foo_bar" is one word
-        # Note: "-bar" has leading dash separator, "foo_bar" has no leading separator (space before it)
+        # With " -" as separators, we match non-whitespace sequences
+        # and extract words based on separators for copying
         assert len(matches) == 2
-        assert any(m.text == "-bar" for m in matches)  # "bar" with leading dash separator
-        assert any(m.text == "foo_bar" for m in matches)
-        # Verify that copy_text strips the separator
-        assert any(m.copy_text == "bar" for m in matches)
+        # Match 1: sequence "foo-bar", copy_text "bar" (dash is separator)
+        assert any(m.text == "foo-bar" and m.copy_text == "bar" for m in matches)
+        # Match 2: sequence "foo_bar", copy_text "foo_bar" (underscore not a separator)
+        assert any(m.text == "foo_bar" and m.copy_text == "foo_bar" for m in matches)
 
     def test_search_reverse_order(self):
         """Test search with reverse ordering (bottom to top)."""
@@ -425,3 +424,61 @@ class TestSearchInterface:
 
         # Matches should be populated
         assert len(search.matches) > 0
+
+    def test_search_without_word_separators(self):
+        """Test search without word separators uses default pattern."""
+        # Clear cache to ensure pattern compilation path is hit
+        SearchInterface._pattern_cache.clear()
+
+        content = "hello-world foo_bar"
+        # No word_separators specified
+        search = SearchInterface(content, word_separators=None)
+
+        matches = search.search("world")
+
+        # Should find "hello-world" as one sequence
+        assert len(matches) == 1
+        assert matches[0].text == "hello-world"
+
+    def test_search_match_in_separators_only(self):
+        """Test when match is in separators only, copy first word after match."""
+        content = "a#longer#c"
+        separators = "#"
+        search = SearchInterface(content, word_separators=separators)
+
+        matches = search.search("#")
+
+        # Match is the # character, should copy the word after each match
+        assert len(matches) == 2
+        # First # at position 1, next word is 'longer'
+        # Second # at position 8, next word is 'c'
+        # Results are sorted, so order depends on reverse_search
+        copy_texts = sorted([m.copy_text for m in matches])
+        assert copy_texts == ["c", "longer"]
+
+    def test_search_match_fallback_to_longest_word(self):
+        """Test when match is at end with no following word, fallback to longest."""
+        content = "a#longer#"
+        separators = "#"
+        search = SearchInterface(content, word_separators=separators)
+
+        matches = search.search("#")
+
+        # Both # characters have no word after them (or reach end of sequence)
+        # Should fall back to longest word in sequence
+        assert len(matches) == 2
+        # Should pick 'longer' (longest word) for both
+        assert all(m.copy_text == "longer" for m in matches)
+
+    def test_label_assignment_case_sensitive_continuation(self):
+        """Test label assignment with case-sensitive continuation chars."""
+        content = "Hello World"
+        search = SearchInterface(content, case_sensitive=True)
+
+        matches = search.search("H")
+
+        # In case-sensitive mode, continuation char 'e' should be excluded
+        assert len(matches) == 1
+        # Label should not be 'e' (continuation char after 'H')
+        if matches[0].label:
+            assert matches[0].label != "e"

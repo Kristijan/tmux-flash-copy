@@ -258,3 +258,83 @@ class TestClipboard:
 
         assert result is True
         mock_run.assert_called_once_with(["tmux", "set-buffer", "--", "test text"])
+
+    @patch("src.clipboard.Clipboard._tmux_osc52")
+    @patch("src.clipboard.Clipboard._pbcopy")
+    def test_copy_pbcopy_success_with_logging(self, mock_pbcopy, mock_osc52, mock_tmux_env):
+        """Test pbcopy fallback with debug logging."""
+        mock_osc52.return_value = False
+        mock_pbcopy.return_value = True
+        mock_logger = MagicMock()
+
+        with patch.object(sys, "platform", "darwin"):
+            result = Clipboard.copy("test text", logger=mock_logger)
+
+        assert result is True
+        mock_logger.log.assert_called_once_with("Clipboard: Success via pbcopy (macOS)")
+
+    @patch("src.clipboard.Clipboard._tmux_osc52")
+    @patch("src.clipboard.Clipboard._xclip")
+    def test_copy_xclip_success_with_logging(self, mock_xclip, mock_osc52, mock_tmux_env):
+        """Test xclip fallback with debug logging."""
+        mock_osc52.return_value = False
+        mock_xclip.return_value = True
+        mock_logger = MagicMock()
+
+        with patch.object(sys, "platform", "linux"):
+            result = Clipboard.copy("test text", logger=mock_logger)
+
+        assert result is True
+        mock_logger.log.assert_called_once_with("Clipboard: Success via xclip (Linux)")
+
+    @patch("src.clipboard.Clipboard._tmux_osc52")
+    @patch("src.clipboard.Clipboard._xclip")
+    @patch("src.clipboard.Clipboard._xsel")
+    def test_copy_xsel_success_with_logging(self, mock_xsel, mock_xclip, mock_osc52, mock_tmux_env):
+        """Test xsel fallback with debug logging."""
+        mock_osc52.return_value = False
+        mock_xclip.return_value = False
+        mock_xsel.return_value = True
+        mock_logger = MagicMock()
+
+        with patch.object(sys, "platform", "linux"):
+            result = Clipboard.copy("test text", logger=mock_logger)
+
+        assert result is True
+        mock_logger.log.assert_called_once_with("Clipboard: Success via xsel (Linux)")
+
+    @patch("src.clipboard.Clipboard._tmux_osc52")
+    @patch("src.clipboard.Clipboard._pbcopy")
+    @patch("src.clipboard.Clipboard._tmux_buffer")
+    def test_copy_all_methods_fail_with_logging(
+        self, mock_tmux_buffer, mock_pbcopy, mock_osc52, mock_tmux_env
+    ):
+        """Test all clipboard methods failing with debug logging."""
+        mock_osc52.return_value = False
+        mock_pbcopy.return_value = False
+        mock_tmux_buffer.return_value = False
+        mock_logger = MagicMock()
+
+        with patch.object(sys, "platform", "darwin"):
+            result = Clipboard.copy("test text", logger=mock_logger)
+
+        assert result is False
+        mock_logger.log.assert_called_once_with("Clipboard: All methods failed")
+
+    @patch("src.clipboard.Clipboard.copy")
+    @patch("src.clipboard.SubprocessUtils.run_command_quiet")
+    def test_auto_paste_exception_handling(self, mock_run, mock_copy, mock_tmux_env):
+        """Test auto-paste failure is caught silently."""
+        mock_copy.return_value = True
+        mock_run.side_effect = RuntimeError("Auto-paste failed")
+        mock_logger = MagicMock()
+
+        # Should not raise exception even though auto-paste fails
+        result = Clipboard.copy_and_paste(
+            "test text", pane_id="%0", auto_paste=True, logger=mock_logger
+        )
+
+        # Copy should still succeed
+        assert result is True
+        # Should log the failure
+        mock_logger.log.assert_any_call("Auto-paste to pane %0: Failed")

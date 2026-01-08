@@ -101,7 +101,20 @@ uv run pytest --cov=src --cov-report=term-missing
 
 ### Label Assignment Algorithm
 
-Labels from `DEFAULT_LABELS = "asdfghjklqwertyuiopzxcvbnmASDFGHJKLQWERTYUIOPZXCVBNM"` are assigned to matches ensuring no label character appears as continuation of the search pattern (prevents accidental multi-character input).
+- Labels from `DEFAULT_LABELS = "asdfghjklqwertyuiopzxcvbnmASDFGHJKLQWERTYUIOPZXCVBNM"` are assigned to matches ensuring no label character appears as continuation of the search pattern (prevents accidental multi-character input).
+- When creating labels in the interface, never add characters that will cause the pane contents to move or line wrap.
+- Replace the next character when highlighting a match, so 'hello world' becomes 'hQllo world' ('Q', the label, replacing the letter 'e')
+- When a whole word is matched, and the next character is a space, place the label in that spot, so 'hello world' becomes 'helloQworld' (replacing the space with the letter 'Q', being the label)
+
+### Word separators
+
+Word separators should only apply to the text that is copied to the clipboard, and not when searching.
+
+As an example.
+String: tmux bind-key "${bind_key}" run-shell "${PLUGIN_DIR}/bin/tmux-flash-copy.py"
+Configured word separators: ' ()":,;<>~!@#$%^&*|+=[]{}?`''
+
+I should be able to search for ${b and it apply a label to "${bind_key}". If that label is selected, only the word bind_key should be copied.
 
 ## Testing Philosophy
 

@@ -176,3 +176,13 @@ class TestAnsiUtils:
         """Test mapping position in empty string."""
         text = ""
         assert AnsiUtils.map_position_to_coloured(text, 0) == 0
+
+    def test_map_position_to_coloured_malformed_ansi(self):
+        """Test position mapping with malformed ANSI sequence (no 'm' terminator)."""
+        # "\x1b[31" is missing the 'm' terminator
+        text = "\x1b[31Hello"
+        # Should handle gracefully without crashing
+        result = AnsiUtils.map_position_to_coloured(text, 3)
+        # Should return a valid integer position
+        assert isinstance(result, int)
+        assert result >= 0

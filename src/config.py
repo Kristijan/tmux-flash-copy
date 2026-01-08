@@ -5,6 +5,7 @@ Provides a centralized way to read and parse tmux configuration options
 with consistent error handling and type conversion.
 """
 
+import ast
 import subprocess
 from dataclasses import dataclass
 from typing import Optional
@@ -33,10 +34,118 @@ class FlashCopyConfig:
 class ConfigLoader:
     """Handles reading and parsing tmux configuration options."""
 
+    # Cache for batched option reads to reduce subprocess calls
+    _global_options_cache: Optional[dict[str, str]] = None
+    _window_options_cache: Optional[dict[str, str]] = None
+
+    @staticmethod
+    def _read_all_global_options() -> dict[str, str]:
+        """
+        Batch read all tmux global options in a single subprocess call.
+
+        Returns:
+            Dictionary mapping option names to their values
+        """
+        options = {}
+        try:
+            result = subprocess.run(
+                ["tmux", "show-options", "-g"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5,
+            )
+            if result.returncode == 0:
+                for line in result.stdout.splitlines():
+                    # Parse lines like: @flash-copy-debug off
+                    # or: @flash-copy-prompt-colour "\033[1m"
+                    if " " in line:
+                        parts = line.split(" ", 1)
+                        if len(parts) == 2:
+                            key = parts[0]
+                            value = parts[1].strip()
+                            # Remove surrounding quotes and decode escape sequences if present
+                            if value.startswith('"') and value.endswith('"'):
+                                try:
+                                    # Use ast.literal_eval to properly decode escape sequences
+                                    value = ast.literal_eval(value)
+                                except (ValueError, SyntaxError):
+                                    # Fallback: just strip quotes without decoding
+                                    value = value[1:-1]
+                            options[key] = value
+        except (subprocess.SubprocessError, OSError):
+            pass
+        return options
+
+    @staticmethod
+    def _read_all_window_options() -> dict[str, str]:
+        """
+        Batch read all tmux window options in a single subprocess call.
+
+        Returns:
+            Dictionary mapping option names to their values
+        """
+        options = {}
+        try:
+            result = subprocess.run(
+                ["tmux", "show-window-option", "-g"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5,
+            )
+            if result.returncode == 0:
+                for line in result.stdout.splitlines():
+                    if " " in line:
+                        parts = line.split(" ", 1)
+                        if len(parts) == 2:
+                            key = parts[0]
+                            value = parts[1].strip()
+                            # Remove surrounding quotes and decode escape sequences if present
+                            if value.startswith('"') and value.endswith('"'):
+                                try:
+                                    # Use ast.literal_eval to properly decode escape sequences
+                                    value = ast.literal_eval(value)
+                                except (ValueError, SyntaxError):
+                                    # Fallback: just strip quotes without decoding
+                                    value = value[1:-1]
+                            options[key] = value
+        except (subprocess.SubprocessError, OSError):
+            pass
+        return options
+
+    @staticmethod
+    def _run_tmux_command(args: list[str], default: str = "") -> str:
+        """
+        Run a tmux command and return stdout or default on error.
+
+        Args:
+            args: List of command arguments to pass to subprocess.run
+            default: Default value if command fails
+
+        Returns:
+            The command output as a string, or default if command fails
+        """
+        try:
+            result = subprocess.run(
+                args,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5,
+            )
+            if result.returncode == 0:
+                return result.stdout.strip()
+            return default
+        except (subprocess.SubprocessError, OSError):
+            return default
+
     @staticmethod
     def _read_tmux_option(option_name: str, default: str = "") -> str:
         """
         Read a tmux global option value.
+
+        Uses cached values if available to reduce subprocess calls.
 
         Args:
             option_name: The tmux option name (e.g., "@flash-copy-auto-paste")
@@ -45,24 +154,22 @@ class ConfigLoader:
         Returns:
             The option value as a string, or default if not found
         """
-        try:
-            result = subprocess.run(
-                ["tmux", "show-option", "-gv", option_name],
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=5,
-            )
-            if result.returncode == 0:
-                return result.stdout.strip()
-            return default
-        except (subprocess.SubprocessError, OSError):
-            return default
+        # Check cache first
+        if ConfigLoader._global_options_cache is not None:
+            return ConfigLoader._global_options_cache.get(option_name, default)
+
+        # Fall back to individual read if cache not populated
+        return ConfigLoader._run_tmux_command(
+            ["tmux", "show-option", "-gv", option_name],
+            default,
+        )
 
     @staticmethod
     def _read_tmux_window_option(option_name: str, default: str = "") -> str:
         """
         Read a tmux window option value.
+
+        Uses cached values if available to reduce subprocess calls.
 
         Args:
             option_name: The tmux option name (e.g., "word-separators")
@@ -71,19 +178,15 @@ class ConfigLoader:
         Returns:
             The option value as a string, or default if not found
         """
-        try:
-            result = subprocess.run(
-                ["tmux", "show-window-option", "-g", option_name],
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=5,
-            )
-            if result.returncode == 0:
-                return result.stdout.strip()
-            return default
-        except (subprocess.SubprocessError, OSError):
-            return default
+        # Check cache first
+        if ConfigLoader._window_options_cache is not None:
+            return ConfigLoader._window_options_cache.get(option_name, default)
+
+        # Fall back to individual read if cache not populated
+        return ConfigLoader._run_tmux_command(
+            ["tmux", "show-window-option", "-g", option_name],
+            default,
+        )
 
     @staticmethod
     def parse_bool(value: str) -> bool:
@@ -187,6 +290,20 @@ class ConfigLoader:
             return default
 
     @staticmethod
+    def get_optional_string(option_name: str) -> Optional[str]:
+        """
+        Get string option, returning None if empty or not set.
+
+        Args:
+            option_name: The tmux option name
+
+        Returns:
+            The option value as a string, or None if empty or not found
+        """
+        value = ConfigLoader.get_string(option_name, default="")
+        return value if value else None
+
+    @staticmethod
     def get_word_separators(default: Optional[str] = None) -> Optional[str]:
         """
         Get word separators setting, with priority order.
@@ -212,30 +329,38 @@ class ConfigLoader:
         # Fallback to tmux's built-in word-separators window option
         output = ConfigLoader._read_tmux_window_option("word-separators", "")
 
-        if not output or '"' not in output:
+        if not output:
             return default
 
-        try:
-            # Output format: word-separators "value"
-            # Extract the quoted value
-            start = output.find('"')
-            end = output.rfind('"')
+        # Check if this is the full command output format: "word-separators \"value\""
+        if output.startswith("word-separators"):
+            # Full format from direct command - extract the value part
+            if len(output) == len("word-separators"):
+                # Edge case: "word-separators" with no value
+                return default
+            elif output[len("word-separators")] == " ":
+                # Has a space separator, extract value part
+                output = output[len("word-separators ") :]
+                if not output:
+                    return default
 
-            if start != -1 and end != -1 and start < end:
-                # Get the quoted string and decode escape sequences
-                quoted_value = output[start : end + 1]
+        # Check if it's in quoted format "value" (from non-cached read)
+        if output.startswith('"'):
+            # Starts with quote - should be in quoted format
+            if output.endswith('"') and len(output) > 1:
                 try:
-                    # Use ast.literal_eval to properly decode the quoted string
-                    import ast
-
-                    return ast.literal_eval(quoted_value)
+                    # Use ast.literal_eval to properly decode escape sequences
+                    return ast.literal_eval(output)
                 except (ValueError, SyntaxError):
-                    # Fallback: just extract between quotes without decoding
-                    return output[start + 1 : end]
-        except Exception:
-            pass
+                    # Fallback: just strip quotes without decoding
+                    return output[1:-1]
+            else:
+                # Malformed quoted value (e.g., just '"' or doesn't end with quote)
+                return default
 
-        return default
+        # Otherwise, it's already decoded (from cache)
+        # Return it as-is if it's not empty, otherwise return default
+        return output if output else default
 
     @staticmethod
     def load_all_flash_copy_config() -> FlashCopyConfig:
@@ -247,6 +372,30 @@ class ConfigLoader:
         Returns:
             FlashCopyConfig dataclass with all flash-copy configuration options
         """
+        # Batch read all options in single subprocess calls for performance
+        ConfigLoader._global_options_cache = ConfigLoader._read_all_global_options()
+        ConfigLoader._window_options_cache = ConfigLoader._read_all_window_options()
+
+        # word-separators doesn't appear in batch read, so read it individually
+        # and add to cache for consistency
+        if "word-separators" not in ConfigLoader._window_options_cache:
+            # For word-separators, we need to preserve leading/trailing spaces
+            # since they're significant separator characters
+            try:
+                result = subprocess.run(
+                    ["tmux", "show-window-option", "-gv", "word-separators"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=5,
+                )
+                if result.returncode == 0 and result.stdout:
+                    # Only strip newlines, not spaces
+                    word_sep_output = result.stdout.rstrip("\n\r")
+                    ConfigLoader._window_options_cache["word-separators"] = word_sep_output
+            except (subprocess.SubprocessError, OSError):
+                pass
+
         return FlashCopyConfig(
             reverse_search=ConfigLoader.get_bool("@flash-copy-reverse-search", default=True),
             case_sensitive=ConfigLoader.get_bool("@flash-copy-case-sensitive", default=False),
@@ -265,9 +414,7 @@ class ConfigLoader:
             prompt_colour=ConfigLoader.get_string("@flash-copy-prompt-colour", default="\033[1m"),
             debug_enabled=ConfigLoader.get_bool("@flash-copy-debug", default=False),
             auto_paste_enable=ConfigLoader.get_bool("@flash-copy-auto-paste", default=True),
-            label_characters=(
-                ConfigLoader.get_string("@flash-copy-label-characters", default="") or None
-            ),
+            label_characters=ConfigLoader.get_optional_string("@flash-copy-label-characters"),
             idle_timeout=ConfigLoader.get_int("@flash-copy-idle-timeout", default=15),
             idle_warning=ConfigLoader.get_int("@flash-copy-idle-warning", default=5),
         )
