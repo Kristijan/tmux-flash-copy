@@ -23,11 +23,10 @@ This document explains how to set up your local development environment and run 
   - [2. Linting with `ruff`](#2-linting-with-ruff)
   - [3. Formatting with `ruff`](#3-formatting-with-ruff)
 - [Test Structure](#test-structure)
-  - [Test Organization](#test-organization)
+  - [Test Organisation](#test-organisation)
 - [Continuous Integration (CI)](#continuous-integration-ci)
   - [GitHub Actions Workflow](#github-actions-workflow)
   - [Running CI Checks Locally](#running-ci-checks-locally)
-  - [Test Timeouts](#test-timeouts)
 - [Related Documentation](#related-documentation)
 
 ## Prerequisites
@@ -218,14 +217,18 @@ tests/
 ### Test Files Overview
 
 #### `test_ansi_utils.py`
+
 Tests for ANSI escape sequence handling and utilities:
+
 - **TestAnsiStyles**: ANSI style constants (BOLD, DIM, RESET)
 - **TestTerminalSequences**: Terminal sequence constants (CLEAR_SCREEN)
 - **TestControlChars**: Control character constants (CTRL_C, ESC, BACKSPACE, ENTER, etc.)
 - **TestAnsiUtils**: Strip ANSI codes, visible length calculation, position mapping
 
 #### `test_auto_paste.py`
+
 Tests for auto-paste functionality that allows pasting selected text directly:
+
 - **TestAutoPasteConfiguration**: Configuration defaults and settings
 - **TestAutoPasteInteractiveUI**: Semicolon/colon modifier behavior
 - **TestAutoPasteDebugLogging**: Debug logging for modifier state changes
@@ -235,20 +238,28 @@ Tests for auto-paste functionality that allows pasting selected text directly:
 - **TestAutoPasteEdgeCases**: Edge cases and boundary conditions
 
 #### `test_clipboard.py`
+
 Tests for clipboard operations with OSC52 and fallback mechanisms:
+
 - **TestClipboard**: OSC52 copying, pbcopy/xclip fallbacks, error handling
 
 #### `test_config.py`
+
 Tests for configuration loading from tmux options:
+
 - **TestFlashCopyConfig**: Default values, color settings, boolean options
 - **TestConfigLoader**: Loading from tmux options, parsing values
 
 #### `test_debug_logger.py`
+
 Tests for debug logging system (enabled via `@flash-copy-debug`).
 
 #### `test_idle_timeout.py`
+
 Tests for idle timeout functionality that auto-exits after inactivity:
+
 - **TestIdleTimeoutWarning**: Warning display after threshold
+
 - **TestIdleTimeoutExit**: Exit behavior after timeout
 - **TestIdleTimeoutWarningValidation**: Warning validation logic
 - **TestIdleTimeoutReset**: Timeout reset on user input
@@ -256,26 +267,36 @@ Tests for idle timeout functionality that auto-exits after inactivity:
 - **TestIdleTimeoutDebugLogging**: Debug logging for timeout events
 
 #### `test_label_placement.py`
+
 Tests for label placement rendering logic:
+
 - Partial match label placement (replaces next character)
 - Whole word match label placement (replaces following space)
 
 #### `test_pane_capture.py`
+
 Tests for capturing tmux pane content:
+
 - **TestPaneCapture**: Pane content capture via `tmux capture-pane`
 
 #### `test_popup_ui.py`
+
 Tests for tmux popup/window UI management:
+
 - **TestPopupUIAutoPaste**: Auto-paste flag handling in popup
 - **TestPopupUIErrorHandling**: Error handling and cleanup
 
 #### `test_search_interface.py`
+
 Tests for search and label assignment logic:
+
 - **TestSearchMatch**: Search match data structure
 - **TestSearchInterface**: Word matching, label generation, dynamic search updates
 
 #### `test_utils.py`
+
 Tests for utility functions and tmux integration:
+
 - **TestSubprocessUtils**: Subprocess command execution with timeouts
 - **TestPaneDimensions**: Pane dimension parsing
 - **TestTmuxPaneUtils**: Tmux pane information retrieval
