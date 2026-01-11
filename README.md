@@ -1,6 +1,18 @@
-# ⚡📋 tmux-flash-copy
+<h1 align="center">
+    ⚡📋 TMUX Flash Copy
+</h1>
 
-[![Plugin Testing](https://github.com/Kristijan/tmux-flash-copy/actions/workflows/plugin-testing.yml/badge.svg)](https://github.com/Kristijan/tmux-flash-copy/actions/workflows/plugin-testing.yml) [![codecov](https://codecov.io/gh/Kristijan/tmux-flash-copy/graph/badge.svg?token=2JVYOAK3SR)](https://codecov.io/gh/Kristijan/tmux-flash-copy) [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+<div align="center">
+    <a href="https://github.com/Kristijan/flash-copy.tmux/actions/workflows/plugin-testing.yml">
+        <img src="https://github.com/Kristijan/flash-copy.tmux/actions/workflows/plugin-testing.yml/badge.svg"/>
+    </a>
+    <a href="https://codecov.io/gh/Kristijan/flash-copy.tmux">
+        <img src="https://codecov.io/gh/Kristijan/flash-copy.tmux/graph/badge.svg?token=2JVYOAK3SR"/> 
+    </a>
+    <a href="https://www.gnu.org/licenses/gpl-3.0">
+        <img src="https://img.shields.io/badge/License-GPLv3-blue.svg"/>
+    </a>
+</div>
 
 A tmux plugin inspired by [flash.nvim](https://github.com/folke/flash.nvim) that enables you to search visible words in the current tmux pane, then copy that word to the system clipboard by pressing the associated label key.
 
@@ -45,7 +57,7 @@ A tmux plugin inspired by [flash.nvim](https://github.com/folke/flash.nvim) that
 2. Add `tmux-flash-copy` to your `~/.tmux.conf`:
 
     ```bash
-    set -g @plugin 'kristijan/tmux-flash-copy'
+    set -g @plugin 'kristijan/flash-copy.tmux'
     ```
 
 3. Start tmux and install the plugin.
@@ -59,13 +71,13 @@ A tmux plugin inspired by [flash.nvim](https://github.com/folke/flash.nvim) that
 1. Clone this repository to your desired location:
 
     ```bash
-    git clone https://github.com/kristijan/tmux-flash-copy.git ~/.tmux/plugins/tmux-flash-copy
+    git clone https://github.com/kristijan/flash-copy.tmux.git ~/.tmux/plugins/flash-copy.tmux
     ```
 
 2. Add the following to your `~/.tmux.conf`:
 
     ```bash
-    run-shell ~/.tmux/plugins/tmux-flash-copy/tmux-flash-copy.tmux
+    run-shell ~/.tmux/plugins/flash-copy.tmux/tmux-flash-copy.tmux
     ```
 
     Any customisation variables should be set **BEFORE** the `run-shell` line so they're correctly sourced.
@@ -75,7 +87,7 @@ A tmux plugin inspired by [flash.nvim](https://github.com/folke/flash.nvim) that
     ```bash
     set -g @flash-copy-bind-key "f"
     set -g @flash-copy-prompt-indicator "❯"
-    run-shell ~/.tmux/plugins/tmux-flash-copy/tmux-flash-copy.tmux
+    run-shell ~/.tmux/plugins/flash-copy.tmux/tmux-flash-copy.tmux
     ```
 
 3. Reload your tmux configuration:
@@ -403,7 +415,7 @@ For information on setting up a development environment, running tests, and code
 The following configuration is used in the demonstration GIF.
 
 ```bash
-set -g @plugin 'kristijan/tmux-flash-copy'
+set -g @plugin 'kristijan/flash-copy.tmux'
 set -g @flash-copy-prompt-indicator "❯"
 set -g @flash-copy-prompt-colour "\033[38;2;203;166;247m"
 ```
