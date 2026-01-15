@@ -123,14 +123,22 @@ def test_debug_logger_write_and_rotation(tmp_path):
 
 
 def test_debug_logger_get_default_path_and_disable_on_error(tmp_path, monkeypatch):
-    # Simulate Path.touch raising OSError to hit fallback
-    def _raise_touch(self, *args, **kwargs):
-        raise OSError("nope")
+    # Simulate os.access returning False to hit fallback to /tmp path
+    import os
 
-    monkeypatch.setattr(Path, "touch", _raise_touch)
+    original_access = os.access
 
-    # Creating DebugLogger with enabled True should fallback without exception
+    def _deny_home_access(path, mode):
+        # Deny write access to home directory to force fallback
+        if str(Path.home()) in str(path):
+            return False
+        return original_access(path, mode)
+
+    monkeypatch.setattr(os, "access", _deny_home_access)
+
+    # Creating DebugLogger with enabled True should fallback to /tmp path
     logger = DebugLogger(enabled=True, log_file=None)
+    assert "/tmp/tmux-flash-copy-debug-" in logger.log_file
     assert logger.enabled in (True, False)
 
     # Cleanup singleton for other tests

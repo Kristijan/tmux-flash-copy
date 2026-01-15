@@ -55,9 +55,10 @@ class DebugLogger:
         try:
             home = Path.home()
             log_path = home / ".tmux-flash-copy-debug.log"
-            # Test write access
-            log_path.touch(exist_ok=True)
-            return str(log_path)
+            # Test write access to parent directory without creating the file
+            if os.access(log_path.parent, os.W_OK):
+                return str(log_path)
+            raise PermissionError("No write access to home directory")
         except (OSError, PermissionError):
             # Fallback to /tmp with UID to avoid conflicts
             uid = os.getuid()
